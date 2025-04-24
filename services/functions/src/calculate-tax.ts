@@ -19,6 +19,9 @@ export async function main(event: Event) {
 
   const stripe = new Stripe(secret.STRIPE_API_KEY);
 
+  const subscriptionTaxRate = "txr_1REZvnQvisdaxt9GiIu9Nnsx";
+  const sessionTaxRate = "txr_1REaATQvisdaxt9GgOTmt8T0";
+
   const customer = await stripe.customers.create({
     name: getRandomName(),
     address: {
@@ -49,6 +52,7 @@ export async function main(event: Event) {
         price: "price_1REWQPQvisdaxt9GjVkPjn7R",
       },
     ],
+    default_tax_rates: [subscriptionTaxRate],
     automatic_tax: {
       enabled: false,
     },
@@ -65,34 +69,14 @@ export async function main(event: Event) {
     const sessionTotal = getRandomInt(sessionTotalMin, sessionTotalMax);
     console.log(`Session total: $${sessionTotal}`);
 
-    const taxCalculation = await stripe.tax.calculations.create({
-      currency: "usd",
-      line_items: [
-        {
-          amount: sessionTotal,
-          reference: sessionId,
-        },
-      ],
-      customer_details: {
-        address: {
-          city: "Schenectady",
-          country: "US",
-          line1: "2345 Maxon Rd. Ext.",
-          postal_code: "12309",
-        },
-        address_source: "shipping",
-      },
-    });
-    console.log(`Created tax calculation with ID: ${taxCalculation.id}`);
-
     const invoiceItem = await stripe.invoiceItems.create({
       customer: customer.id,
       subscription: subscription.id,
       amount: sessionTotal,
       currency: "usd",
       description: `Test invoice item for session ${sessionId}`,
+      tax_rates: [sessionTaxRate],
       metadata: {
-        tax_calculation_id: taxCalculation.id,
         has_collected_tax: "false",
         session_id: sessionId,
       },
@@ -126,7 +110,35 @@ function leftPad(str: string, length: number) {
 }
 
 const colors = ["red", "blue", "green", "yellow", "purple", "orange"];
-const animals = ["dog", "cat", "bird", "fish", "snake", "lizard"];
+const animals = [
+  "dog",
+  "cat",
+  "bird",
+  "fish",
+  "snake",
+  "lizard",
+  "horse",
+  "ant",
+  "bee",
+  "elephant",
+  "giraffe",
+  "hippo",
+  "jaguar",
+  "kangaroo",
+  "lion",
+  "monkey",
+  "octopus",
+  "panda",
+  "quokka",
+  "rabbit",
+  "shark",
+  "tiger",
+  "unicorn",
+  "vulture",
+  "walrus",
+  "yak",
+  "zebra",
+];
 
 function getRandomName() {
   return `${colors[getRandomInt(0, colors.length - 1)]} ${
