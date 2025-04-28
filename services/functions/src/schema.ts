@@ -5,6 +5,11 @@ export const incidents = pgTable("incidents", {
   name: text("name").notNull(),
   status: text("status", { enum: ["OPEN", "RESOLVED"] }).notNull(),
   team: text("team"),
+  impact: text("impact", {
+    enum: ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NO IMPACT"],
+  })
+    .notNull()
+    .default("CRITICAL"),
   createdAt: timestamp("created_at").notNull(),
   resolvedAt: timestamp("resolved_at"),
 });

@@ -3,6 +3,7 @@ import {
   EventSummary,
   GetIncidentRecordCommand,
   GetTimelineEventCommand,
+  IncidentRecord,
   IncidentRecordSummary,
   ListIncidentRecordsCommand,
   ListTagsForResourceCommand,
@@ -260,7 +261,9 @@ async function syncIncident(
       name: incident.incidentRecord.title!,
       status: incident.incidentRecord.status!,
       team: team ?? null,
+      impact: getImpactFromIncidentRecord(incident.incidentRecord),
       createdAt: incident.incidentRecord.creationTime!,
+      resolvedAt: incident.incidentRecord.resolvedTime!,
     })
     .onConflictDoUpdate({
       target: [schema.incidents.id],
@@ -268,7 +271,9 @@ async function syncIncident(
         status: incident.incidentRecord.status,
         team,
         name: incident.incidentRecord.title,
+        impact: getImpactFromIncidentRecord(incident.incidentRecord),
         createdAt: incident.incidentRecord.creationTime!,
+        resolvedAt: incident.incidentRecord.resolvedTime!,
       },
     });
 
@@ -342,15 +347,6 @@ async function syncIncident(
       for (const attribute of eventData.modifiedAttributes!) {
         if (attribute.attributeName === "status") {
           if (attribute.newValue === "RESOLVED") {
-            console.log(`Updating incident status to RESOLVED: ${incidentId}`);
-            await db
-              .update(schema.incidents)
-              .set({
-                status: "RESOLVED",
-                resolvedAt: timelineEvent.event.eventTime!,
-              })
-              .where(eq(schema.incidents.id, incidentId));
-
             console.log(
               `Adding resolution event to timeline: ${event.eventId}`
             );
@@ -601,3 +597,25 @@ type TimelineEventData = {
 };
 
 type TimelineEventType = keyof TimelineEventData;
+
+function getImpactFromIncidentRecord(
+  incidentRecord: IncidentRecord
+): schema.Incident["impact"] {
+  if (incidentRecord.impact === 1) {
+    return "CRITICAL";
+  }
+
+  if (incidentRecord.impact === 2) {
+    return "HIGH";
+  }
+
+  if (incidentRecord.impact === 3) {
+    return "MEDIUM";
+  }
+
+  if (incidentRecord.impact === 4) {
+    return "LOW";
+  }
+
+  return "NO IMPACT";
+}
