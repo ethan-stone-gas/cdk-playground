@@ -1,0 +1,10 @@
+{
+  "event": {
+    "eventData": "{\"contactArn\":\"arn:aws:ssm-contacts:us-east-1:914165346309:contact/estone\",\"engagementArn\":\"arn:aws:ssm-contacts:us-east-1:914165346309:engagement/critical/f0b58789-63b0-495e-bc13-435f97ba1eb5\"}",
+    "eventId": "4ccb34ab-9e1f-5ea8-6396-643fe287a37c",
+    "eventTime": "2025-04-24T15:47:26.551000-04:00",
+    "eventType": "SSM Contacts Page Acknowledgement for Incident",
+    "eventUpdatedTime": "2025-04-24T15:47:26.910000-04:00",
+    "incidentRecordArn": "arn:aws:ssm-incidents::914165346309:incident-record/ResponsePlan1/c0cb3487-368d-0a3e-2a48-0d78a63217dd"
+  }
+}

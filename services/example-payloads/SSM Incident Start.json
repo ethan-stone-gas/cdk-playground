@@ -1,0 +1,10 @@
+{
+  "event": {
+    "eventData": "{\"incidentTitle\":\"Critical Errors [TotalLambdaErrCount-Warning]\",\"contactsEngage\":[{\"contactArn\":\"arn:aws:ssm-contacts:us-east-1:914165346309:contact/critical\",\"contactName\":\"critical\"}],\"ssmDocumentName\":\"AWSIncidents-CriticalIncidentRunbookTemplate\",\"ssmDocumentVersion\":\"$LATEST\",\"triggerArn\":\"arn:aws:cloudwatch:us-east-1:914165346309:alarm:TotalLambdaErrCount-Warning\"}",
+    "eventId": "7acb3487-38d0-cc33-25cd-011949c0d931",
+    "eventTime": "2025-04-24T14:27:55-04:00",
+    "eventType": "SSM Incident Start",
+    "eventUpdatedTime": "2025-04-24T14:27:56.449000-04:00",
+    "incidentRecordArn": "arn:aws:ssm-incidents::914165346309:incident-record/ResponsePlan1/c0cb3487-368d-0a3e-2a48-0d78a63217dd"
+  }
+}

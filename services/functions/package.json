@@ -1,9 +1,21 @@
 {
   "name": "functions",
   "type": "module",
-  "scripts": {},
-  "dependencies": {},
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.797.0",
+    "@aws-sdk/client-ssm-contacts": "^3.796.0",
+    "@aws-sdk/client-ssm-incidents": "^3.796.0",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.43.1",
+    "pg": "^8.15.5"
+  },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.143"
+    "@types/aws-lambda": "^8.10.143",
+    "@types/pg": "^8.11.14",
+    "drizzle-kit": "^0.31.0"
   }
 }

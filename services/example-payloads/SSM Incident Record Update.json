@@ -1,0 +1,10 @@
+{
+  "event": {
+    "eventData": "{\"modifiedBy\":\"arn:aws:sts::914165346309:assumed-role/AWSReservedSSO_AdministratorAccess_bb35bcd882b15279/estone@lynkwell.com\",\"modifiedAttributes\":[{\"attributeName\":\"status\",\"newValue\":\"RESOLVED\"}],\"incidentTitle\":\"Critical Errors [TotalLambdaErrCount-Warning]\"}",
+    "eventId": "2acb3702-4762-afd3-fa49-a8051db89aaf",
+    "eventTime": "2025-04-25T13:35:14.606000-04:00",
+    "eventType": "SSM Incident Record Update",
+    "eventUpdatedTime": "2025-04-25T13:35:14.606000-04:00",
+    "incidentRecordArn": "arn:aws:ssm-incidents::914165346309:incident-record/ResponsePlan1/c0cb3487-368d-0a3e-2a48-0d78a63217dd"
+  }
+}
