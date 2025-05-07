@@ -2,8 +2,8 @@
   "name": "functions",
   "type": "module",
   "scripts": {},
-  "dependencies": {},
   "devDependencies": {
+    "@tsconfig/node22": "^22.0.1",
     "@types/aws-lambda": "^8.10.143"
   }
 }
