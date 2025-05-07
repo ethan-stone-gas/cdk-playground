@@ -1,0 +1,1 @@
+ALTER TABLE "incidents" ADD COLUMN "impact" text DEFAULT 'CRITICAL' NOT NULL;
