@@ -1,9 +1,19 @@
 {
   "name": "functions",
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "load-test": "artillery run load-test.yml"
+  },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.1",
-    "@types/aws-lambda": "^8.10.143"
+    "@types/aws-lambda": "^8.10.143",
+    "artillery": "^2.0.22",
+    "tsx": "^4.19.4"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.804.0",
+    "@aws-sdk/client-kinesis": "^3.804.0",
+    "@aws-sdk/util-dynamodb": "^3.804.0",
+    "hono": "^4.7.8"
   }
 }
