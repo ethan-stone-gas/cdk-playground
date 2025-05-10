@@ -5,5 +5,11 @@
   "devDependencies": {
     "@tsconfig/node22": "^22.0.1",
     "@types/aws-lambda": "^8.10.143"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.806.0",
+    "@aws-sdk/client-kinesis": "^3.806.0",
+    "@aws-sdk/lib-dynamodb": "^3.806.0",
+    "@aws-sdk/util-dynamodb": "^3.806.0"
   }
 }
