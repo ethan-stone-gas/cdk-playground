@@ -27,6 +27,11 @@ export class CdkPlaygroundStack extends cdk.Stack {
 
     const stream = new kinesis.Stream(this, "RateLimitStream", {});
 
+    new lambda.LayerVersion(this, "RateLimitExtension", {
+      code: lambda.Code.fromAsset("services/extension/dist"),
+      compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
+    });
+
     const apiFn = new lambda_node.NodejsFunction(this, "RateLimitFunction", {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "main",
@@ -35,6 +40,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
       environment: {
         DYNAMODB_TABLE_NAME: table.tableName,
         KINESIS_STREAM_NAME: stream.streamName,
+        LAMBDA_EXTENSION_PATH: "index.js",
       },
     });
 

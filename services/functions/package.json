@@ -1,13 +1,10 @@
 {
   "name": "functions",
   "type": "module",
-  "scripts": {
-    "load-test": "artillery run load-test.yml"
-  },
+  "scripts": {},
   "devDependencies": {
     "@tsconfig/node22": "^22.0.1",
     "@types/aws-lambda": "^8.10.143",
-    "artillery": "^2.0.22",
     "tsx": "^4.19.4"
   },
   "dependencies": {

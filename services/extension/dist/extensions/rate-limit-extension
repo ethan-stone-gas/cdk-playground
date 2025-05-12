@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -euo pipefail
+
+OWN_FILENAME="$(basename "$0")"
+LAMBDA_EXTENSION_PATH="$OWN_FILENAME"
+
+echo "${LAMBDA_EXTENSION_PATH} launching extension"
+
+exec "/opt/${LAMBDA_EXTENSION_PATH}.js"

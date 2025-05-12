@@ -2,18 +2,17 @@ config:
   # This is a test server run by team Artillery
   # It's designed to be highly scalable
   target: https://tzpefz4ue5.execute-api.us-east-1.amazonaws.com
+  processor: "./metrics.js"
   phases:
     - duration: 60
-      arrivalRate: 1
-      rampTo: 5
+      arrivalCount: 10
       name: Warm up phase
     - duration: 60
-      arrivalRate: 5
-      rampTo: 10
+      arrivalCount: 100
       name: Ramp up load
     - duration: 30
       arrivalRate: 10
-      rampTo: 30
+      rampTo: 1
       name: Spike phase
   # Load & configure a couple of useful plugins
   # https://docs.art/reference/extensions
@@ -32,7 +31,8 @@ config:
     fields:
       - api_key
 scenarios:
-  - flow:
+  - afterResponse: "trackCacheMisses"
+    flow:
       - loop:
           - get:
               url: "v1/api/hello"

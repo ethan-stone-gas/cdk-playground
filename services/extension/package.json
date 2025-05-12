@@ -1,0 +1,16 @@
+{
+  "name": "extension",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/rate-limit-extension.ts --bundle --outfile=dist/rate-limit-extension.js --platform=node --target=node22 --format=cjs --banner:js='#!/usr/bin/env node'"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.1",
+    "@types/aws-lambda": "^8.10.143",
+    "esbuild": "^0.25.4",
+    "tsx": "^4.19.4"
+  },
+  "dependencies": {
+    "zod": "^3.24.4"
+  }
+}

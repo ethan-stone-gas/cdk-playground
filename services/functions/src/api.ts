@@ -1,17 +1,15 @@
 import { Context, MiddlewareHandler } from "hono";
 import crypto from "crypto";
 import { handle } from "hono/aws-lambda";
-import { getRequestCountForWindow } from "./db";
+import { getRequestCountForWindow, incrementRequestCountForWindow } from "./db";
 import { publishMessages } from "./queue";
 
-const lambdaId = crypto.randomUUID();
-
-// --- Configuration ---
+// --- Rate limit Cache Configuration ---
 const RATE_LIMIT_WINDOW_SECONDS = 60; // The time window for rate limiting (e.g., 60 seconds for per-minute)
 const RATE_LIMIT_MAX_REQUESTS = 10; // The maximum allowed requests within the window
 const CACHE_INVALIDATION_SECONDS = 30; // How often to invalidate the cache for a specific API key and window
 
-// --- Kinesis Configuration ---
+// --- Request Count Flushing Configuration ---
 const FLUSH_INTERVAL_SECONDS = 5; // How often to attempt to flush in-memory requests
 const MAX_BATCH_SIZE = 50; // Max number of distinct API keys/windows to include in a single batch message
 
@@ -62,7 +60,7 @@ async function getEntityIdFromToken(
 /**
  * Attempts to flush the in-memory request counts to the Kinesis stream.
  */
-async function flushRequestsToKinesisIfNecessary() {
+async function incrementRequestCountIfNecessary() {
   const now = Math.floor(Date.now() / 1000);
   const needsFlush =
     requestsToFlush.size > 0 &&
@@ -71,45 +69,29 @@ async function flushRequestsToKinesisIfNecessary() {
 
   if (needsFlush) {
     console.log(
-      `Flushing ${requestsToFlush.size} API key/window requests to Kinesis.`
+      `Flushing ${requestsToFlush.size} entityId::windowIdentifier requests to DynamoDB.`
     );
 
-    // Prepare the batch data
-    const requests: RequestMessage[] = [];
+    const promises = [];
 
     for (const [key, count] of requestsToFlush.entries()) {
       const [entityId, windowIdentifier] = key.split("::");
       if (entityId && windowIdentifier) {
-        requests.push({
-          entityId,
-          windowIdentifier,
-          count,
-          timestamp: now,
-        });
+        promises.push(
+          incrementRequestCountForWindow(entityId, windowIdentifier, count)
+        );
       }
     }
-
-    // Clear the in-memory buffer *before* attempting to send.
-    // This means if sending fails, these requests are lost.
-    // A more robust approach would re-add on failure or use a different flush strategy.
 
     requestsToFlush.clear();
     lastFlushTime = now; // Update last flush time immediately
 
     try {
-      await publishMessages(
-        requests.map((request) => ({
-          data: JSON.stringify(request),
-          partitionKey: request.entityId,
-        }))
-      );
+      await Promise.all(promises);
 
-      console.log("Requests successfully flushed to Kinesis.");
+      console.log("Successfully flushed requests to DynamoDB.");
     } catch (error) {
-      console.error("Error flushing requests to Kinesis:", error);
-      // Handle errors sending to the queue. Log, alert, potentially dead-letter queue.
-      // If sending fails, the requests in `currentRequestsToFlush` are lost
-      // unless you implement a retry/re-add mechanism here.
+      console.error("Error flushing requests to DynamoDB:", error);
     }
   }
 }
@@ -120,7 +102,7 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
   next
 ) => {
   // Attempt to flush requests before processing the current request
-  await flushRequestsToKinesisIfNecessary();
+  await incrementRequestCountIfNecessary();
 
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.replace("Bearer ", "");
@@ -149,6 +131,11 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
   let cachedAggregatedCount = aggregatedRequestCache.get(cacheKey);
   const now = Math.floor(Date.now() / 1000);
 
+  const isCacheStale =
+    !cachedAggregatedCount ||
+    now - cachedAggregatedCount.lastFetchedTime >= CACHE_INVALIDATION_SECONDS;
+
+  // do this separately because otherwise typescript doesn't recognize we're checking if cachedAggregatedCount exists
   if (
     !cachedAggregatedCount ||
     now - cachedAggregatedCount.lastFetchedTime >= CACHE_INVALIDATION_SECONDS
@@ -208,6 +195,7 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
   c.header("X-RateLimit-Remaining", remaining.toString());
   c.header("X-RateLimit-Reset", (nowInSeconds + timeUntilReset).toString()); // Timestamp of next window start
   c.header("X-RateLimit-Reset-Seconds", timeUntilReset.toString());
+  c.header("X-RateLimit-Cache-Stale", isCacheStale.toString());
 
   if (success) {
     const numRequestsToFlush = requestsToFlush.get(cacheKey) || 0;
@@ -230,7 +218,6 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
 
 // --- Example Hono App (for testing) ---
 import { Hono } from "hono";
-import { RequestMessage } from "./message-schemas";
 
 let app = new Hono();
 
