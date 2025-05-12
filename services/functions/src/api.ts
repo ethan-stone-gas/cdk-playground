@@ -1,36 +1,29 @@
 import { Context, MiddlewareHandler } from "hono";
-import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
-import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import crypto from "crypto";
 import { handle } from "hono/aws-lambda";
+import { getRequestCountForWindow } from "./db";
+import { publishMessages } from "./queue";
 
-// Import necessary AWS SDK clients for Kinesis
-import { KinesisClient, PutRecordCommand } from "@aws-sdk/client-kinesis";
+const lambdaId = crypto.randomUUID();
 
 // --- Configuration ---
 const RATE_LIMIT_WINDOW_SECONDS = 60; // The time window for rate limiting (e.g., 60 seconds for per-minute)
 const RATE_LIMIT_MAX_REQUESTS = 10; // The maximum allowed requests within the window
 const CACHE_INVALIDATION_SECONDS = 30; // How often to invalidate the cache for a specific API key and window
-const DYNAMODB_TABLE_NAME = process.env.DYNAMODB_TABLE_NAME; // Your DynamoDB table name
 
 // --- Kinesis Configuration ---
-const KINESIS_STREAM_NAME = process.env.KINESIS_STREAM_NAME; // Your Kinesis Stream name
 const FLUSH_INTERVAL_SECONDS = 5; // How often to attempt to flush in-memory requests
 const MAX_BATCH_SIZE = 50; // Max number of distinct API keys/windows to include in a single batch message
 
-// --- AWS SDK Clients ---
-const dynamodbClient = new DynamoDBClient({});
-const kinesisClient = new KinesisClient({}); // Explicitly initialize KinesisClient
-
 // --- In-Memory Cache for Aggregated Request Counts ---
-// Key: apiKeyId::windowIdentifier, Value: { count: number, lastFetchedTime: number }
+// Key: entityId::windowIdentifier, Value: { count: number, lastFetchedTime: number }
 const aggregatedRequestCache = new Map<
   string,
   { count: number; lastFetchedTime: number }
 >();
 
 // --- In-Memory Request Tracking for Flushing ---
-// Tracks the number of requests per apiKeyId::windowIdentifier since the last flush
+// Tracks the number of requests per entityId::windowIdentifier since the last flush
 const requestsToFlush = new Map<string, number>();
 let lastFlushTime = Math.floor(Date.now() / 1000); // Track the last time a flush was attempted
 
@@ -56,7 +49,7 @@ function getCurrentWindowIdentifier(): string {
  * Hashes the API key (replace with your actual API key resolution logic)
  * and returns a unique identifier for the API key.
  */
-async function getApiKeyIdFromToken(
+async function getEntityIdFromToken(
   token: string
 ): Promise<string | undefined> {
   if (!token) {
@@ -64,36 +57,6 @@ async function getApiKeyIdFromToken(
   }
   // Simple hashing for demonstration. Replace with your actual ID lookup.
   return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-/**
- * Fetches the aggregated request count for a specific window from DynamoDB.
- */
-async function getAggregatedRequestCountFromDynamoDB(
-  apiKeyId: string,
-  windowIdentifier: string
-): Promise<number> {
-  try {
-    const command = new GetItemCommand({
-      TableName: DYNAMODB_TABLE_NAME,
-      Key: marshall({ apiKeyId, windowIdentifier }),
-      ProjectionExpression: "requestCount", // Only fetch the requestCount attribute
-    });
-    const { Item } = await dynamodbClient.send(command);
-    if (Item && Item.requestCount && Item.requestCount.N) {
-      return Number(Item.requestCount.N);
-    }
-    return 0; // Return 0 if the item or requestCount doesn't exist
-  } catch (error) {
-    console.error(
-      `Error fetching aggregated request count from DynamoDB for ${apiKeyId}::${windowIdentifier}:`,
-      error
-    );
-    // Depending on your strategy, you might return 0 (allow potentially)
-    // or throw an error (prevent request on DB failure). Let's return 0
-    // to favor availability over strict rate limiting on DB read errors.
-    return 0;
-  }
 }
 
 /**
@@ -112,40 +75,34 @@ async function flushRequestsToKinesisIfNecessary() {
     );
 
     // Prepare the batch data
-    const batchData: {
-      apiKeyId: string;
-      windowIdentifier: string;
-      count: number;
-    }[] = [];
+    const requests: RequestMessage[] = [];
+
     for (const [key, count] of requestsToFlush.entries()) {
-      const [apiKeyId, windowIdentifier] = key.split("::");
-      if (apiKeyId && windowIdentifier) {
-        batchData.push({ apiKeyId, windowIdentifier, count });
+      const [entityId, windowIdentifier] = key.split("::");
+      if (entityId && windowIdentifier) {
+        requests.push({
+          entityId,
+          windowIdentifier,
+          count,
+          timestamp: now,
+        });
       }
     }
 
     // Clear the in-memory buffer *before* attempting to send.
     // This means if sending fails, these requests are lost.
     // A more robust approach would re-add on failure or use a different flush strategy.
-    const currentRequestsToFlush = new Map(requestsToFlush); // Copy for retries if needed
+
     requestsToFlush.clear();
     lastFlushTime = now; // Update last flush time immediately
 
-    // Construct the message payload
-    const messagePayload = JSON.stringify({
-      timestamp: now, // Timestamp of when the batch is sent
-      requests: batchData,
-    });
-
     try {
-      const command = new PutRecordCommand({
-        StreamName: KINESIS_STREAM_NAME!,
-        Data: Buffer.from(messagePayload),
-        // Using the first apiKeyId as a partition key. A better strategy
-        // for even distribution might be needed depending on traffic patterns.
-        PartitionKey: batchData[0]?.apiKeyId || "default",
-      });
-      await kinesisClient.send(command);
+      await publishMessages(
+        requests.map((request) => ({
+          data: JSON.stringify(request),
+          partitionKey: request.entityId,
+        }))
+      );
 
       console.log("Requests successfully flushed to Kinesis.");
     } catch (error) {
@@ -174,35 +131,34 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
     return;
   }
 
-  const apiKeyId = await getApiKeyIdFromToken(token);
+  const entityId = await getEntityIdFromToken(token);
 
-  if (!apiKeyId) {
+  if (!entityId) {
     console.log("Invalid API key provided");
     c.status(401); // Unauthorized or Bad Request
     return c.text("Invalid API key");
   }
 
   const windowIdentifier = getCurrentWindowIdentifier();
-  const cacheKey = `${apiKeyId}::${windowIdentifier}`;
+  const cacheKey = `${entityId}::${windowIdentifier}`;
 
   console.log(
-    `Processing request for API Key ID: ${apiKeyId}, Window: ${windowIdentifier}`
+    `Processing request for Entity ID: ${entityId}, Window: ${windowIdentifier}`
   );
 
   let cachedAggregatedCount = aggregatedRequestCache.get(cacheKey);
   const now = Math.floor(Date.now() / 1000);
 
-  const isCacheStale =
+  if (
     !cachedAggregatedCount ||
-    now - cachedAggregatedCount.lastFetchedTime >= CACHE_INVALIDATION_SECONDS;
-
-  if (isCacheStale) {
+    now - cachedAggregatedCount.lastFetchedTime >= CACHE_INVALIDATION_SECONDS
+  ) {
     console.log(
       `Cache missing or stale for ${cacheKey}, fetching from DynamoDB`
     );
     try {
-      const dbAggregatedCount = await getAggregatedRequestCountFromDynamoDB(
-        apiKeyId,
+      const dbAggregatedCount = await getRequestCountForWindow(
+        entityId,
         windowIdentifier
       );
       cachedAggregatedCount = {
@@ -229,44 +185,21 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
     );
   }
 
-  // Get the current in-memory count for this window that hasn't been flushed yet
-  const inMemoryCount = requestsToFlush.get(cacheKey) || 0;
-
-  // Calculate the total requests in the current window (fetched from DB + in-memory unflushed)
-  const totalRequestsInWindow =
-    (cachedAggregatedCount?.count || 0) + inMemoryCount;
+  // increment the count for this request
+  cachedAggregatedCount.count += 1;
 
   console.log(
-    `Total requests in window for ${cacheKey}: ${totalRequestsInWindow} (DB: ${cachedAggregatedCount?.count}, In-Memory: ${inMemoryCount})`
+    `Total requests in window for ${cacheKey}: ${cachedAggregatedCount.count}`
   );
 
   // --- Apply the Rate Limit ---
-  const success = totalRequestsInWindow < RATE_LIMIT_MAX_REQUESTS;
+  const success = cachedAggregatedCount.count < RATE_LIMIT_MAX_REQUESTS;
 
-  if (success) {
-    // Request allowed: Increment the in-memory count for flushing
-    requestsToFlush.set(cacheKey, inMemoryCount + 1);
-    console.log(
-      `Request allowed for ${apiKeyId}. New in-memory count: ${requestsToFlush.get(
-        cacheKey
-      )}`
-    );
-    await next();
-  } else {
-    // Rate limited: Do NOT increment the in-memory count or proceed.
-    console.log(
-      `Rate limit exceeded for ${apiKeyId}. Total requests in window: ${totalRequestsInWindow}`
-    );
-    c.status(429); // Too Many Requests
-    return c.text("Rate limit exceeded");
-  }
-
-  // Optional: Add rate limit headers based on the current *estimated* state.
-  // These headers will be eventually consistent with DynamoDB.
   const remaining = Math.max(
     0,
-    RATE_LIMIT_MAX_REQUESTS - totalRequestsInWindow
+    RATE_LIMIT_MAX_REQUESTS - cachedAggregatedCount.count
   );
+
   const nowInSeconds = Math.floor(Date.now() / 1000);
   const timeInWindow = nowInSeconds % RATE_LIMIT_WINDOW_SECONDS; // Time elapsed within the current window
   const timeUntilReset = RATE_LIMIT_WINDOW_SECONDS - timeInWindow;
@@ -275,12 +208,31 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
   c.header("X-RateLimit-Remaining", remaining.toString());
   c.header("X-RateLimit-Reset", (nowInSeconds + timeUntilReset).toString()); // Timestamp of next window start
   c.header("X-RateLimit-Reset-Seconds", timeUntilReset.toString());
+
+  if (success) {
+    const numRequestsToFlush = requestsToFlush.get(cacheKey) || 0;
+
+    // Request allowed: Increment the in-memory count for flushing
+    requestsToFlush.set(cacheKey, numRequestsToFlush + 1);
+    console.log(
+      `Request allowed for ${entityId}. New in-memory count: ${numRequestsToFlush}`
+    );
+    await next();
+  } else {
+    // Rate limited: Do NOT increment the in-memory count or proceed.
+    console.log(
+      `Rate limit exceeded for ${entityId}. Total requests in window: ${cachedAggregatedCount.count}`
+    );
+    c.status(429); // Too Many Requests
+    return c.text("Rate limit exceeded");
+  }
 };
 
 // --- Example Hono App (for testing) ---
 import { Hono } from "hono";
+import { RequestMessage } from "./message-schemas";
 
-const app = new Hono();
+let app = new Hono();
 
 // Apply the rate limit middleware to routes that require it
 app.use("/api/*", rateLimitMiddleware);

@@ -1,18 +1,12 @@
-import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-import { marshall } from "@aws-sdk/util-dynamodb";
-import { KinesisStreamEvent, KinesisStreamRecord } from "aws-lambda";
-
-// --- Configuration ---
-const DYNAMODB_TABLE_NAME = process.env.DYNAMODB_TABLE_NAME; // Your DynamoDB table name
-
-// --- DynamoDB Client ---
-const dynamodbClient = new DynamoDBClient({});
+import { KinesisStreamEvent } from "aws-lambda";
+import { incrementRequestCountForWindow } from "./db";
+import { RequestMessageSchema } from "./message-schemas";
 
 // --- Lambda Handler ---
 export const main = async (event: KinesisStreamEvent): Promise<void> => {
   console.log("Received Kinesis stream event:", JSON.stringify(event, null, 2));
 
-  // Map to store aggregated request counts for the current batch, keyed by apiKeyId::windowIdentifier
+  // Map to store aggregated request counts for the current batch, keyed by entityId::windowIdentifier
   const aggregatedRequestsByWindow = new Map<string, number>();
 
   // Process each record in the Kinesis event batch
@@ -22,32 +16,16 @@ export const main = async (event: KinesisStreamEvent): Promise<void> => {
       const payload = Buffer.from(record.kinesis.data, "base64").toString();
       const batchData = JSON.parse(payload);
 
-      console.log("Processing Kinesis record payload:", batchData);
+      const parsedData = RequestMessageSchema.parse(batchData);
 
-      // Assuming the payload structure is { timestamp: number, requests: [{ apiKeyId: string, windowIdentifier: string, count: number }] }
-      if (batchData && Array.isArray(batchData.requests)) {
-        for (const request of batchData.requests) {
-          if (
-            request.apiKeyId &&
-            request.windowIdentifier &&
-            typeof request.count === "number"
-          ) {
-            const key = `${request.apiKeyId}::${request.windowIdentifier}`;
-            // Aggregate request counts for each apiKeyId::windowIdentifier
-            aggregatedRequestsByWindow.set(
-              key,
-              (aggregatedRequestsByWindow.get(key) || 0) + request.count
-            );
-          } else {
-            console.warn("Invalid request data in batch:", request);
-          }
-        }
-      } else {
-        console.warn(
-          "Invalid batch data structure in Kinesis record:",
-          batchData
-        );
-      }
+      console.log("Processing Kinesis record payload:", parsedData);
+
+      const key = `${parsedData.entityId}::${parsedData.windowIdentifier}`;
+
+      aggregatedRequestsByWindow.set(
+        key,
+        (aggregatedRequestsByWindow.get(key) || 0) + parsedData.count
+      );
     } catch (error) {
       console.error(
         "Error processing Kinesis record:",
@@ -69,25 +47,16 @@ export const main = async (event: KinesisStreamEvent): Promise<void> => {
   const updatePromises: Promise<any>[] = [];
 
   for (const [key, totalRequests] of aggregatedRequestsByWindow.entries()) {
-    const [apiKeyId, windowIdentifier] = key.split("::");
+    const [entityId, windowIdentifier] = key.split("::");
 
-    if (apiKeyId && windowIdentifier) {
-      // Use UpdateItem with ADD to atomically increment the requestCount
-      const updateCommand = new UpdateItemCommand({
-        TableName: DYNAMODB_TABLE_NAME,
-        Key: marshall({ apiKeyId, windowIdentifier }),
-        UpdateExpression: "SET #rc = if_not_exists(#rc, :start) + :increment",
-        ExpressionAttributeNames: {
-          "#rc": "requestCount",
-        },
-        ExpressionAttributeValues: marshall({
-          ":increment": totalRequests,
-          ":start": 0, // Initialize requestCount to 0 if it doesn't exist
-        }),
-        ReturnValues: "NONE", // No need to return values for this operation
-      });
-
-      updatePromises.push(dynamodbClient.send(updateCommand));
+    if (entityId && windowIdentifier) {
+      updatePromises.push(
+        incrementRequestCountForWindow(
+          entityId,
+          windowIdentifier,
+          totalRequests
+        )
+      );
     } else {
       console.warn(`Invalid key format in aggregatedRequestsByWindow: ${key}`);
     }
@@ -97,7 +66,7 @@ export const main = async (event: KinesisStreamEvent): Promise<void> => {
   try {
     await Promise.all(updatePromises);
     console.log(
-      `Successfully updated DynamoDB for ${updatePromises.length} API key/window combinations.`
+      `Successfully updated DynamoDB for ${updatePromises.length} entityId/windowIdentifier combinations.`
     );
   } catch (dbError) {
     console.error("Error updating DynamoDB with aggregated requests:", dbError);

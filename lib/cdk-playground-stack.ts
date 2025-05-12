@@ -5,6 +5,8 @@ import * as lambda_node from "aws-cdk-lib/aws-lambda-nodejs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as kinesis from "aws-cdk-lib/aws-kinesis";
 import * as lambda_event_sources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
+
 export class CdkPlaygroundStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -13,7 +15,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
 
     const table = new dynamodb.Table(this, "RateLimitTable", {
       partitionKey: {
-        name: "apiKeyId",
+        name: "entityId",
         type: dynamodb.AttributeType.STRING,
       },
       sortKey: {
@@ -25,7 +27,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
 
     const stream = new kinesis.Stream(this, "RateLimitStream", {});
 
-    const api = new lambda_node.NodejsFunction(this, "RateLimitFunction", {
+    const apiFn = new lambda_node.NodejsFunction(this, "RateLimitFunction", {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "main",
       entry: "services/functions/src/api.ts",
@@ -36,11 +38,18 @@ export class CdkPlaygroundStack extends cdk.Stack {
       },
     });
 
-    table.grantReadWriteData(api);
-    stream.grantWrite(api);
+    table.grantReadWriteData(apiFn);
+    stream.grantWrite(apiFn);
 
-    const apiUrl = api.addFunctionUrl({
-      authType: lambda.FunctionUrlAuthType.NONE,
+    const restApi = new apigateway.LambdaRestApi(this, "RateLimitApi", {
+      handler: apiFn,
+      proxy: true,
+      deployOptions: {
+        stageName: "v1",
+        throttlingBurstLimit: 200,
+        throttlingRateLimit: 100,
+      },
+      deploy: true,
     });
 
     const aggregator = new lambda_node.NodejsFunction(
@@ -70,7 +79,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
     stream.grantWrite(aggregator);
 
     new cdk.CfnOutput(this, "ApiUrl", {
-      value: apiUrl.url,
+      value: restApi.url,
     });
   }
 }
