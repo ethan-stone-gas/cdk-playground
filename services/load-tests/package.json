@@ -2,7 +2,8 @@
   "name": "load-tests",
   "type": "commonjs",
   "scripts": {
-    "load-test": "artillery run load-test.yml"
+    "malicious-user": "artillery run malicious-user.yml",
+    "normal-user": "artillery run normal-user.yml"
   },
   "devDependencies": {
     "artillery": "^2.0.23"

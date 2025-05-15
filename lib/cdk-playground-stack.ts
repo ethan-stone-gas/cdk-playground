@@ -52,8 +52,8 @@ export class CdkPlaygroundStack extends cdk.Stack {
       proxy: true,
       deployOptions: {
         stageName: "v1",
-        throttlingBurstLimit: 200,
-        throttlingRateLimit: 100,
+        throttlingBurstLimit: 100,
+        throttlingRateLimit: 500,
       },
       deploy: true,
     });

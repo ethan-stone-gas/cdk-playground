@@ -6,8 +6,8 @@ import { publishMessages } from "./queue";
 
 // --- Rate limit Cache Configuration ---
 const RATE_LIMIT_WINDOW_SECONDS = 60; // The time window for rate limiting (e.g., 60 seconds for per-minute)
-const RATE_LIMIT_MAX_REQUESTS = 10; // The maximum allowed requests within the window
-const CACHE_INVALIDATION_SECONDS = 30; // How often to invalidate the cache for a specific API key and window
+const RATE_LIMIT_MAX_REQUESTS = 100; // The maximum allowed requests within the window
+const CACHE_INVALIDATION_SECONDS = 10; // How often to invalidate the cache for a specific API key and window
 
 // --- Request Count Flushing Configuration ---
 const FLUSH_INTERVAL_SECONDS = 5; // How often to attempt to flush in-memory requests
@@ -58,9 +58,13 @@ async function getEntityIdFromToken(
 }
 
 /**
- * Attempts to flush the in-memory request counts to the Kinesis stream.
+ * Attempts to flush the in-memory request counts to the DynamoDB table.
  */
-async function incrementRequestCountIfNecessary() {
+async function incrementRequestCountIfNecessary(): Promise<{
+  success: boolean;
+  numRequestsFlushed: number;
+  flushDuration?: number;
+}> {
   const now = Math.floor(Date.now() / 1000);
   const needsFlush =
     requestsToFlush.size > 0 &&
@@ -72,6 +76,7 @@ async function incrementRequestCountIfNecessary() {
       `Flushing ${requestsToFlush.size} entityId::windowIdentifier requests to DynamoDB.`
     );
 
+    const flushStartTime = performance.now();
     const promises = [];
 
     for (const [key, count] of requestsToFlush.entries()) {
@@ -88,12 +93,26 @@ async function incrementRequestCountIfNecessary() {
 
     try {
       await Promise.all(promises);
+      const flushDuration = performance.now() - flushStartTime;
 
-      console.log("Successfully flushed requests to DynamoDB.");
+      console.log(
+        `Successfully flushed requests to DynamoDB in ${flushDuration.toFixed(
+          2
+        )}ms`
+      );
+
+      return {
+        success: true,
+        numRequestsFlushed: promises.length,
+        flushDuration,
+      };
     } catch (error) {
       console.error("Error flushing requests to DynamoDB:", error);
+      return { success: false, numRequestsFlushed: 0 };
     }
   }
+
+  return { success: false, numRequestsFlushed: 0 };
 }
 
 // --- Hono Middleware ---
@@ -102,7 +121,7 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
   next
 ) => {
   // Attempt to flush requests before processing the current request
-  await incrementRequestCountIfNecessary();
+  const requestFlushResult = await incrementRequestCountIfNecessary();
 
   const authHeader = c.req.header("Authorization");
   const token = authHeader?.replace("Bearer ", "");
@@ -135,6 +154,8 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
     !cachedAggregatedCount ||
     now - cachedAggregatedCount.lastFetchedTime >= CACHE_INVALIDATION_SECONDS;
 
+  let cacheInvalidationDuration: number | undefined;
+
   // do this separately because otherwise typescript doesn't recognize we're checking if cachedAggregatedCount exists
   if (
     !cachedAggregatedCount ||
@@ -143,18 +164,23 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
     console.log(
       `Cache missing or stale for ${cacheKey}, fetching from DynamoDB`
     );
+    const cacheStartTime = performance.now();
     try {
       const dbAggregatedCount = await getRequestCountForWindow(
         entityId,
         windowIdentifier
       );
+      cacheInvalidationDuration = performance.now() - cacheStartTime;
+
       cachedAggregatedCount = {
         count: dbAggregatedCount,
         lastFetchedTime: now,
       };
       aggregatedRequestCache.set(cacheKey, cachedAggregatedCount);
       console.log(
-        `Fetched aggregated count from DB for ${cacheKey}: ${cachedAggregatedCount.count}`
+        `Fetched aggregated count from DB for ${cacheKey}: ${
+          cachedAggregatedCount.count
+        } in ${cacheInvalidationDuration.toFixed(2)}ms`
       );
     } catch (dbError) {
       console.error(
@@ -196,6 +222,24 @@ export const rateLimitMiddleware: MiddlewareHandler = async (
   c.header("X-RateLimit-Reset", (nowInSeconds + timeUntilReset).toString()); // Timestamp of next window start
   c.header("X-RateLimit-Reset-Seconds", timeUntilReset.toString());
   c.header("X-RateLimit-Cache-Stale", isCacheStale.toString());
+  c.header(
+    "X-RateLimit-Requests-Flushed",
+    requestFlushResult.numRequestsFlushed.toString()
+  );
+
+  // Add timing headers if operations occurred
+  if (requestFlushResult.flushDuration) {
+    c.header(
+      "X-RateLimit-Flush-Duration",
+      requestFlushResult.flushDuration.toFixed(2)
+    );
+  }
+  if (cacheInvalidationDuration) {
+    c.header(
+      "X-RateLimit-Cache-Invalidation-Duration",
+      cacheInvalidationDuration.toFixed(2)
+    );
+  }
 
   if (success) {
     const numRequestsToFlush = requestsToFlush.get(cacheKey) || 0;
@@ -226,7 +270,9 @@ app.use("/api/*", rateLimitMiddleware);
 
 app.get("/api/hello", async (c) => {
   // Simulate a slow response if needed
-  // await new Promise((resolve) => setTimeout(resolve, Math.random() * 1000));
+  await new Promise((resolve) =>
+    setTimeout(resolve, Math.random() * 700 + 300)
+  );
   return c.text("Hello!");
 });
 

@@ -1,0 +1,30 @@
+config:
+  target: https://tzpefz4ue5.execute-api.us-east-1.amazonaws.com
+  processor: "./metrics.js"
+  # This is supposed to simulate a malicous user who has an API key and is trying to spam the API.
+  # All requests are made with the same API key to identify the user.
+  # The configuration in this file starts from 0 virtual users making requests to 100 virtual users making requests.
+  phases:
+    - duration: 60
+      arrivalCount: 300
+      name: Malicious user started.
+  # Load & configure a couple of useful plugins
+  # https://docs.art/reference/extensions
+  plugins:
+    apdex: {}
+    metrics-by-endpoint: {}
+  apdex:
+    threshold: 100
+  payload:
+    path: "malicious-user-api-keys.csv"
+    fields:
+      - api_key
+scenarios:
+  - afterResponse: "trackCacheMisses"
+    flow:
+      - loop:
+          - get:
+              url: "/v1/api/hello"
+              headers:
+                Authorization: "Bearer {{ api_key }}"
+        count: 100
