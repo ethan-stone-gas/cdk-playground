@@ -1,0 +1,17 @@
+meta {
+  name: Create Embeddings
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/embeddings
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "input": "wefoijwefoijwefoijwefoij owejfiow joiwjefoiwejf oj woiejfwoiejf wefj"
+  }
+}

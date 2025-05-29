@@ -1,9 +1,21 @@
 {
   "name": "functions",
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "seed-vector-db": "tsx scripts/seed-vector-db.ts",
+    "ai-chat": "tsx scripts/ai-chat.ts"
+  },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.1",
-    "@types/aws-lambda": "^8.10.143"
+    "@types/aws-lambda": "^8.10.143",
+    "dotenv": "^16.5.0",
+    "tsx": "^4.19.4"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.810.0",
+    "@google/genai": "^0.14.0",
+    "hono": "^4.7.9",
+    "mongodb": "^6.16.0",
+    "zod": "^3.24.4"
   }
 }
