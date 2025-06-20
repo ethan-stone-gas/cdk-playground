@@ -2,19 +2,19 @@ import { Handler } from "hono";
 import { HonoEnv } from "./app";
 import { validateRequestData } from "./validator";
 import { z } from "zod";
-import { Comment, Ticket } from "./schemas";
+import { ZohoComment, ZohoTicket } from "./schemas";
 
 const payloadItem = z.discriminatedUnion("eventType", [
   z.object({
     eventType: z.literal("Ticket_Add"),
-    payload: Ticket,
+    payload: ZohoTicket,
     eventTime: z.string().datetime(),
     orgId: z.string(),
   }),
   z.object({
     eventType: z.literal("Ticket_Update"),
-    payload: Ticket,
-    prevState: Ticket,
+    payload: ZohoTicket,
+    prevState: ZohoTicket,
     eventTime: z.string().datetime(),
     orgId: z.string(),
   }),
@@ -28,13 +28,13 @@ const payloadItem = z.discriminatedUnion("eventType", [
   }),
   z.object({
     eventType: z.literal("Ticket_Comment_Add"),
-    payload: Comment,
+    payload: ZohoComment,
     eventTime: z.string().datetime(),
     orgId: z.string(),
   }),
   z.object({
     eventType: z.literal("Ticket_Comment_Update"),
-    payload: Comment,
+    payload: ZohoComment,
     eventTime: z.string().datetime(),
     orgId: z.string(),
   }),
