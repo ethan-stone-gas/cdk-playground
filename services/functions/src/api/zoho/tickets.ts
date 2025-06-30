@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { HttpRequest } from "../request";
 import { ZohoTicket } from "../schemas";
 
@@ -9,9 +10,10 @@ type CreateTicketRequestBody = {
   teamId?: string;
 };
 
-type ListTicketsRequestBody = {
-  page: number;
-  per_page: number;
+type ListTicketsRequestParams = {
+  from?: number;
+  limit?: number;
+  status?: string;
 };
 
 export class TicketService {
@@ -56,5 +58,57 @@ export class TicketService {
     const data = await response.json();
 
     return ZohoTicket.parse(data);
+  }
+
+  public async list(params: ListTicketsRequestParams) {
+    const queryParams = new URLSearchParams();
+
+    if (params.from) {
+      queryParams.set("from", params.from.toString());
+    }
+    if (params.limit) {
+      queryParams.set("limit", params.limit.toString());
+    }
+    if (params.status) {
+      queryParams.set("status", params.status);
+    }
+
+    const response = await this.makeRequest(
+      `${this.apiUrl}/tickets?${queryParams.toString()}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to list tickets", {
+        cause: response,
+      });
+    }
+
+    const data = await response.json();
+
+    return z
+      .object({
+        data: z.array(ZohoTicket),
+      })
+      .parse(data);
+  }
+
+  public async close(ticketIds: string[]) {
+    const response = await this.makeRequest(`${this.apiUrl}/closeTickets`, {
+      method: "POST",
+      body: JSON.stringify({
+        ids: ticketIds,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to close tickets", {
+        cause: response,
+      });
+    }
+
+    return;
   }
 }

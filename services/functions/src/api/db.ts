@@ -1,30 +1,18 @@
-import { MongoClient } from "mongodb";
-import { type Comment, type Ticket } from "./schemas";
+import { Filter, MongoClient, WithId } from "mongodb";
+import {
+  BaseTicket,
+  Ticket,
+  ZenDeskTicket,
+  ZohoTicket,
+  type Comment,
+} from "./schemas";
 
-type MongoTicket = Omit<Ticket, "id"> & { _id: string };
-type MongoComment = Omit<Comment, "id"> & { _id: string };
-
-const toMongo = {
-  ticket: (ticket: Ticket) => {
-    return {
-      ...ticket,
-      _id: ticket.id,
-    };
-  },
-  comment: (comment: Comment) => {
-    return {
-      ...comment,
-      _id: comment.id,
-    };
-  },
-};
+type MongoTicket = WithId<Ticket>;
+type MongoComment = WithId<Comment>;
 
 const fromMongo = {
-  ticket: (ticket: MongoTicket) => {
-    return {
-      ...ticket,
-      id: ticket._id,
-    };
+  ticket: (ticket: MongoTicket): Ticket => {
+    return Ticket.parse(ticket);
   },
   comment: (comment: MongoComment) => {
     return {
@@ -43,32 +31,47 @@ const commentCollection = db.collection<MongoComment>("comments");
 
 export class TicketService {
   public async upsertTicket(ticket: Ticket) {
-    const mongoTicket = toMongo.ticket(ticket);
     await ticketCollection.updateOne(
-      { _id: mongoTicket._id },
-      { $set: mongoTicket },
+      { id: ticket.id },
+      { $set: ticket },
       { upsert: true }
     );
   }
 
-  public async getTicket(id: string) {
-    const mongoTicket = await ticketCollection.findOne({ _id: id });
+  public async getTicketById(id: string): Promise<Ticket | null> {
+    const mongoTicket = await ticketCollection.findOne({ id });
+    return mongoTicket ? fromMongo.ticket(mongoTicket) : null;
+  }
+
+  public async getTicketByProviderId(
+    provider: "zoho" | "zendesk",
+    providerId: string
+  ): Promise<Ticket | null> {
+    let filter: Filter<MongoTicket> = {
+      providerId,
+      provider,
+    };
+
+    const mongoTicket = await ticketCollection.findOne(filter);
+
     return mongoTicket ? fromMongo.ticket(mongoTicket) : null;
   }
 }
 
 export class CommentService {
   public async upsertComment(comment: Comment) {
-    const mongoComment = toMongo.comment(comment);
     await commentCollection.updateOne(
-      { _id: mongoComment._id },
-      { $set: mongoComment },
+      { id: comment.id },
+      { $set: comment },
       { upsert: true }
     );
   }
 
   public async getComment(id: string) {
-    const mongoComment = await commentCollection.findOne({ _id: id });
+    const mongoComment = await commentCollection.findOne({ id });
     return mongoComment ? fromMongo.comment(mongoComment) : null;
   }
 }
+
+export const ticketService = new TicketService();
+export const commentService = new CommentService();

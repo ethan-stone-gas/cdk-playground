@@ -1,6 +1,7 @@
 import z from "zod";
 import { TicketService } from "./tickets";
 import { AccessTokenManager } from "./auth-token-manager";
+import { ContactService } from "./contacts";
 
 type Config = {
   clientId: string;
@@ -11,11 +12,10 @@ type Config = {
 
 export class ZohoClient {
   public tickets: TicketService;
-  private accessTokenManager: AccessTokenManager;
+  public contacts: ContactService;
 
   constructor(private readonly config: Config) {
     const accessTokenManager = new AccessTokenManager(config);
-    this.accessTokenManager = accessTokenManager;
 
     const makeAuthenticatedRequest = async (
       url: string | URL | Request,
@@ -34,10 +34,11 @@ export class ZohoClient {
     };
 
     this.tickets = new TicketService(makeAuthenticatedRequest);
+    this.contacts = new ContactService(makeAuthenticatedRequest);
   }
 }
 
-const zoho = new ZohoClient({
+export const zoho = new ZohoClient({
   clientId: process.env.ZOHO_CLIENT_ID!,
   clientSecret: process.env.ZOHO_CLIENT_SECRET!,
   refreshToken: process.env.ZOHO_REFRESH_TOKEN!,
