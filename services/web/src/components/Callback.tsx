@@ -18,9 +18,6 @@ export const Callback: React.FC = () => {
       setStatus("success");
 
       // Redirect to home page after successful authentication
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 2000);
     } catch (error) {
       console.error("Authentication error:", error);
       setError(

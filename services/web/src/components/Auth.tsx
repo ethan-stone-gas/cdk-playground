@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from "react";
-import {
-  signInWithRedirect,
-  signOut,
-  getCurrentUser,
-  fetchUserAttributes,
-} from "aws-amplify/auth";
+import { signInWithRedirect, signOut, getCurrentUser } from "aws-amplify/auth";
 
 interface User {
   username: string;
-  email: string;
 }
 
 export const Auth: React.FC = () => {
@@ -23,10 +17,8 @@ export const Auth: React.FC = () => {
     try {
       const currentUser = await getCurrentUser();
       console.log("currentUser", currentUser);
-      const attributes = await fetchUserAttributes();
       setUser({
         username: currentUser.username,
-        email: attributes.email || "",
       });
     } catch (error) {
       console.error(error);
@@ -64,7 +56,6 @@ export const Auth: React.FC = () => {
       {user ? (
         <div>
           <h2>Welcome, {user.username}!</h2>
-          <p>Email: {user.email}</p>
           <button
             onClick={handleSignOut}
             style={{
