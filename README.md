@@ -1,14 +1,32 @@
-# Welcome to your CDK TypeScript project
+# AWS Cognito SSO
 
-This is a blank project for CDK development with TypeScript.
+This repo is a proof of concept for implementing SSO into our system.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+# Terminology
 
-## Useful commands
+- Identity Provider (IdP): A third party provider that is used for user authentication.
+- Local User: A user created inside the Cognito User Pool itself. Likely through email + password.
+- Federated User: A user created from IdP.
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+# Todo
+
+- [ ] Basic login page where a user signs up with username and password.
+- [ ] Page to validate a domain.
+- [ ] Page to be able to configure an identity provider. This includes associating the IdP with the validated domain.
+- [ ] Backend route for page that creates the Identity Provider and maps the validated domain to that identity provider.
+- [ ] Implement Pre sign-up trigger that links federated users to local users.
+- [ ] Update login page to parses the domain from the email and checks if it maps to an IdP, and redirects the login flow to the IdP.
+
+# Validating the Domain
+
+1. Create a random string.
+2. Generate a record name and record value for TXT DNS record that the user will need to create. The record name will be `_lynkwell.{userdomain} ` and the value will be `lynkwell-site-verification={random_string}`. Store the mapping in a DB somewhere.
+3. User creates TXT DNS record.
+4. Do DNS lookup of `_lynkwell.{userdomain}`. If the record value equals what we expect, then we can consider the domain validated.
+
+# Mapping Domain to IdP
+
+1. Store key value pair of domain to IdP name/ID.
+2. When user logs in, parse the domain from the email.
+3. Lookup if that domain maps to an IdP.
+4. Redirect login to the IdP.
