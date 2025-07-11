@@ -1,14 +1,66 @@
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as path from "path";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
 
 export class CdkPlaygroundStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    const secret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "Secret",
+      "cdk-playground-secrets"
+    );
+
+    const apiFunction = new lambdaNodejs.NodejsFunction(this, "ApiFunction", {
+      entry: path.join(__dirname, "../services/functions/src/api/hono.ts"),
+      handler: "main",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+      environment: {
+        SECRET_ARN: secret.secretArn,
+      },
+    });
+
+    const restApi = new apigateway.LambdaRestApi(this, "RestApi", {
+      proxy: true,
+      handler: apiFunction,
+    });
+
+    const preSignUpFunction = new lambdaNodejs.NodejsFunction(
+      this,
+      "PreSignUpFunction",
+      {
+        entry: path.join(
+          __dirname,
+          "../services/functions/src/cognito-hooks/pre-sign-up.ts"
+        ),
+        handler: "main",
+        runtime: lambda.Runtime.NODEJS_22_X,
+        bundling: {
+          minify: true,
+          sourceMap: true,
+        },
+        environment: {
+          SECRET_ARN: secret.secretArn,
+        },
+      }
+    );
+
     const userPool = new cognito.UserPool(this, "UserPool", {
       signInAliases: {
         email: true,
+      },
+      lambdaTriggers: {
+        preSignUp: preSignUpFunction,
       },
     });
 
@@ -19,25 +71,6 @@ export class CdkPlaygroundStack extends cdk.Stack {
         domainPrefix: `cdk-playground-${this.account}`,
       },
     });
-
-    const tenantId = "52f4b921-d2fd-49db-85c5-350f69f26f61";
-
-    const issuerUrl = `https://sts.windows.net/${tenantId}/`;
-
-    const entraIdProvider = new cognito.UserPoolIdentityProviderOidc(
-      this,
-      "EntraIDProvider",
-      {
-        userPool: userPool,
-        clientId: "5d0c52a3-a721-4563-9940-64ab23356184",
-        clientSecret: "~EZ8Q~jfH53Wu1CbIRDaWZvywqv32p4k6ZS2edmZ",
-        issuerUrl,
-        attributeMapping: {
-          email: cognito.ProviderAttribute.other("email"),
-        },
-        scopes: ["openid", "profile", "email", "aws.cognito.signin.user.admin"],
-      }
-    );
 
     const CALLBACK_URLS = ["http://localhost:5173/callback"];
     const LOGOUT_URLS = ["http://localhost:5173/logout"];
@@ -67,9 +100,6 @@ export class CdkPlaygroundStack extends cdk.Stack {
         },
         supportedIdentityProviders: [
           cognito.UserPoolClientIdentityProvider.COGNITO, // Allow Cognito's own user management
-          cognito.UserPoolClientIdentityProvider.custom(
-            entraIdProvider.providerName
-          ), // Allow Microsoft Entra ID
         ],
       }
     );
@@ -95,11 +125,9 @@ export class CdkPlaygroundStack extends cdk.Stack {
       description: "Full Cognito Domain URL for OAuth",
     });
 
-    // The code that defines your stack goes here
-
-    // example resource
-    // const queue = new sqs.Queue(this, 'CdkPlaygroundQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    new cdk.CfnOutput(this, "RestApiUrl", {
+      value: restApi.url,
+      description: "Rest API URL",
+    });
   }
 }

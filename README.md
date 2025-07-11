@@ -16,6 +16,8 @@ This repo is a proof of concept for implementing SSO into our system.
 - [ ] Backend route for page that creates the Identity Provider and maps the validated domain to that identity provider.
 - [ ] Implement Pre sign-up trigger that links federated users to local users.
 - [ ] Update login page to parses the domain from the email and checks if it maps to an IdP, and redirects the login flow to the IdP.
+- [ ] Invite others to the organization.
+- [ ] Other user is able to login.
 
 # Validating the Domain
 
