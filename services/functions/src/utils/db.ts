@@ -30,13 +30,6 @@ type User = {
   updatedAt: Date;
 };
 
-type Organization = {
-  _id: string;
-  name: string;
-  ownerId: string;
-  createdAt: Date;
-};
-
 export async function createUser(user: User) {
   const client = await initMongoClient();
 
@@ -80,6 +73,13 @@ export async function getUserByCognitoId(cognitoId: string) {
   return userCollection.findOne({ cognitoId });
 }
 
+type Organization = {
+  _id: string;
+  name: string;
+  ownerId: string;
+  createdAt: Date;
+};
+
 export async function createOrganization(org: Organization) {
   const client = await initMongoClient();
 
@@ -88,4 +88,48 @@ export async function createOrganization(org: Organization) {
   const orgCollection = db.collection<Organization>("organizations");
 
   await orgCollection.insertOne(org);
+}
+
+export async function getOrganizationByOwnerId(ownerId: string) {
+  const client = await initMongoClient();
+
+  const db = client.db("awsCognitoSSO");
+
+  const orgCollection = db.collection<Organization>("organizations");
+
+  return orgCollection.findOne({ ownerId });
+}
+
+export type DomainVerificationRecords = {
+  _id: string;
+  organizationId: string;
+  recordName: string;
+  recordValue: string;
+  createdAt: Date;
+};
+
+export async function createDomainVerificationRecord(
+  record: DomainVerificationRecords
+) {
+  const client = await initMongoClient();
+
+  const db = client.db("awsCognitoSSO");
+
+  const domainVerificationRecordCollection =
+    db.collection<DomainVerificationRecords>("domainVerificationRecords");
+
+  await domainVerificationRecordCollection.insertOne(record);
+}
+
+export async function getDomainVerificationRecordByOrganizationId(
+  organizationId: string
+) {
+  const client = await initMongoClient();
+
+  const db = client.db("awsCognitoSSO");
+
+  const domainVerificationRecordCollection =
+    db.collection<DomainVerificationRecords>("domainVerificationRecords");
+
+  return domainVerificationRecordCollection.findOne({ organizationId });
 }

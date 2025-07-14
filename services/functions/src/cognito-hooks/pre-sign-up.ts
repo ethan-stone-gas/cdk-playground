@@ -41,6 +41,7 @@ export const main: PreSignUpTriggerHandler = async (event) => {
         _id: userId,
         email,
         organizations: [orgId],
+        cognitoId,
         status: "CONFIRMED",
         createdAt: now,
         updatedAt: now,
@@ -75,6 +76,7 @@ export const main: PreSignUpTriggerHandler = async (event) => {
         email,
         organizations: [orgId],
         status: "CONFIRMED",
+        cognitoId,
         createdAt: now,
         updatedAt: now,
       });

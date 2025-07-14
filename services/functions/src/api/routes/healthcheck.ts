@@ -21,7 +21,7 @@ const route = createRoute({
   },
 });
 
-export const handler: RouteHandler<typeof route, HonoEnv> = async (c) => {
+const handler: RouteHandler<typeof route, HonoEnv> = async (c) => {
   return c.json({ message: "OK" }, 200);
 };
 

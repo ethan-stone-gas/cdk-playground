@@ -17,24 +17,6 @@ export class CdkPlaygroundStack extends cdk.Stack {
       "cdk-playground-secrets"
     );
 
-    const apiFunction = new lambdaNodejs.NodejsFunction(this, "ApiFunction", {
-      entry: path.join(__dirname, "../services/functions/src/api/hono.ts"),
-      handler: "main",
-      runtime: lambda.Runtime.NODEJS_22_X,
-      bundling: {
-        minify: true,
-        sourceMap: true,
-      },
-      environment: {
-        SECRET_ARN: secret.secretArn,
-      },
-    });
-
-    const restApi = new apigateway.LambdaRestApi(this, "RestApi", {
-      proxy: true,
-      handler: apiFunction,
-    });
-
     const preSignUpFunction = new lambdaNodejs.NodejsFunction(
       this,
       "PreSignUpFunction",
@@ -55,12 +37,94 @@ export class CdkPlaygroundStack extends cdk.Stack {
       }
     );
 
+    secret.grantRead(preSignUpFunction);
+
+    const preTokenGenerationFunction = new lambdaNodejs.NodejsFunction(
+      this,
+      "PreTokenGenerationFunction",
+      {
+        entry: path.join(
+          __dirname,
+          "../services/functions/src/cognito-hooks/pre-token-generation.ts"
+        ),
+        handler: "main",
+        runtime: lambda.Runtime.NODEJS_22_X,
+        bundling: {
+          minify: true,
+          sourceMap: true,
+        },
+      }
+    );
+
     const userPool = new cognito.UserPool(this, "UserPool", {
+      selfSignUpEnabled: true,
+      userVerification: {
+        emailStyle: cognito.VerificationEmailStyle.CODE,
+      },
       signInAliases: {
         email: true,
       },
-      lambdaTriggers: {
-        preSignUp: preSignUpFunction,
+    });
+
+    userPool.addTrigger(
+      cognito.UserPoolOperation.PRE_SIGN_UP,
+      preSignUpFunction,
+      cognito.LambdaVersion.V1_0
+    );
+
+    userPool.addTrigger(
+      cognito.UserPoolOperation.PRE_TOKEN_GENERATION_CONFIG,
+      preTokenGenerationFunction,
+      cognito.LambdaVersion.V2_0
+    );
+
+    const apiResourceServer = userPool.addResourceServer("ApiResourceServer", {
+      identifier: "api",
+      scopes: [
+        {
+          scopeName: "api.access",
+          scopeDescription: "Access to the API",
+        },
+      ],
+    });
+
+    const apiFunction = new lambdaNodejs.NodejsFunction(this, "ApiFunction", {
+      entry: path.join(__dirname, "../services/functions/src/api/hono.ts"),
+      handler: "main",
+      runtime: lambda.Runtime.NODEJS_22_X,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+      },
+      environment: {
+        SECRET_ARN: secret.secretArn,
+      },
+    });
+
+    secret.grantRead(apiFunction);
+
+    const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(
+      this,
+      "CognitoAuthorizer",
+      {
+        cognitoUserPools: [userPool],
+        resultsCacheTtl: cdk.Duration.seconds(0),
+      }
+    );
+
+    const restApi = new apigateway.LambdaRestApi(this, "RestApi", {
+      proxy: true,
+      handler: apiFunction,
+      defaultMethodOptions: {
+        authorizer: cognitoAuthorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+        authorizationScopes: ["api.access"],
+      },
+      defaultCorsPreflightOptions: {
+        allowHeaders: ["*"],
+        allowMethods: ["*"],
+        allowCredentials: true,
+        allowOrigins: ["*"],
       },
     });
 
@@ -84,6 +148,8 @@ export class CdkPlaygroundStack extends cdk.Stack {
         authFlows: {
           userSrp: true, // Recommended for secure user authentication
           custom: true,
+          userPassword: true,
+          adminUserPassword: true,
         },
         oAuth: {
           flows: {
@@ -94,6 +160,10 @@ export class CdkPlaygroundStack extends cdk.Stack {
             cognito.OAuthScope.OPENID,
             cognito.OAuthScope.PROFILE,
             cognito.OAuthScope.COGNITO_ADMIN,
+            cognito.OAuthScope.resourceServer(apiResourceServer, {
+              scopeName: "api.access",
+              scopeDescription: "Access to the API",
+            }),
           ],
           callbackUrls: CALLBACK_URLS,
           logoutUrls: LOGOUT_URLS,

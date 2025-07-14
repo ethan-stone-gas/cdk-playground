@@ -10,8 +10,8 @@ This repo is a proof of concept for implementing SSO into our system.
 
 # Todo
 
-- [ ] Basic login page where a user signs up with username and password.
-- [ ] Page to validate a domain.
+- [x] Basic login page where a user signs up with username and password.
+- [x] Page to validate a domain.
 - [ ] Page to be able to configure an identity provider. This includes associating the IdP with the validated domain.
 - [ ] Backend route for page that creates the Identity Provider and maps the validated domain to that identity provider.
 - [ ] Implement Pre sign-up trigger that links federated users to local users.

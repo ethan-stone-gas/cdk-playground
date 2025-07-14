@@ -1,8 +1,9 @@
-import { LambdaContext, LambdaEvent } from "hono/aws-lambda";
+import { APIGatewayProxyWithCognitoAuthorizerEvent } from "aws-lambda";
+import { LambdaContext } from "hono/aws-lambda";
 
 export type HonoEnv = {
   Bindings: {
-    event: LambdaEvent;
+    event: APIGatewayProxyWithCognitoAuthorizerEvent;
     lambdaContext: LambdaContext;
   };
 };
