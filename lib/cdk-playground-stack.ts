@@ -98,8 +98,12 @@ export class CdkPlaygroundStack extends cdk.Stack {
       },
       environment: {
         SECRET_ARN: secret.secretArn,
+        COGNITO_USER_POOL_ID: userPool.userPoolId,
       },
+      timeout: cdk.Duration.seconds(20),
     });
+
+    userPool.grant(apiFunction, "cognito-idp:*");
 
     secret.grantRead(apiFunction);
 
@@ -169,7 +173,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
           logoutUrls: LOGOUT_URLS,
         },
         supportedIdentityProviders: [
-          cognito.UserPoolClientIdentityProvider.COGNITO, // Allow Cognito's own user management
+          cognito.UserPoolClientIdentityProvider.COGNITO,
         ],
       }
     );

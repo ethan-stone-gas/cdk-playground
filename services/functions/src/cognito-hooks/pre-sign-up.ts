@@ -6,6 +6,7 @@ import {
   getUserByEmail,
   updateUserById,
 } from "src/utils/db";
+import { generateRandomName } from "src/utils/generate-random-name";
 
 export const main: PreSignUpTriggerHandler = async (event) => {
   const now = new Date();
@@ -32,7 +33,7 @@ export const main: PreSignUpTriggerHandler = async (event) => {
 
       await createOrganization({
         _id: orgId,
-        name: "Default Organization",
+        name: generateRandomName(),
         ownerId: userId,
         createdAt: now,
       });

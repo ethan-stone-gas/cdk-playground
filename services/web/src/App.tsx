@@ -8,6 +8,7 @@ import { ProtectedPage } from "./pages/ProtectedPage";
 import { Home } from "./pages/Home";
 import { SignIn } from "./pages/SignIn";
 import { ConfigureDomain } from "./pages/ConfigureDomain";
+import { ConfigureSSO } from "./pages/ConfigureSSO";
 
 function App() {
   return (
@@ -31,6 +32,14 @@ function App() {
             element={
               <ProtectedPage>
                 <ConfigureDomain />
+              </ProtectedPage>
+            }
+          />
+          <Route
+            path="/configure-sso"
+            element={
+              <ProtectedPage>
+                <ConfigureSSO />
               </ProtectedPage>
             }
           />
