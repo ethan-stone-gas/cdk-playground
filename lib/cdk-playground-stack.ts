@@ -107,22 +107,11 @@ export class CdkPlaygroundStack extends cdk.Stack {
 
     secret.grantRead(apiFunction);
 
-    const cognitoAuthorizer = new apigateway.CognitoUserPoolsAuthorizer(
-      this,
-      "CognitoAuthorizer",
-      {
-        cognitoUserPools: [userPool],
-        resultsCacheTtl: cdk.Duration.seconds(0),
-      }
-    );
-
     const restApi = new apigateway.LambdaRestApi(this, "RestApi", {
       proxy: true,
       handler: apiFunction,
       defaultMethodOptions: {
-        authorizer: cognitoAuthorizer,
-        authorizationType: apigateway.AuthorizationType.COGNITO,
-        authorizationScopes: ["api.access"],
+        authorizationType: apigateway.AuthorizationType.NONE,
       },
       defaultCorsPreflightOptions: {
         allowHeaders: ["*"],

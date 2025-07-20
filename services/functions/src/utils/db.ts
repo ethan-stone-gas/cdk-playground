@@ -100,6 +100,13 @@ export async function getOrganizationByOwnerId(ownerId: string) {
   return orgCollection.findOne({ ownerId });
 }
 
+export async function getOrganizationById(id: string) {
+  const client = await initMongoClient();
+  const db = client.db("awsCognitoSSO");
+  const orgCollection = db.collection<Organization>("organizations");
+  return orgCollection.findOne({ _id: id });
+}
+
 export type DomainVerificationRecords = {
   _id: string;
   organizationId: string;
@@ -132,4 +139,14 @@ export async function getDomainVerificationRecordByOrganizationId(
     db.collection<DomainVerificationRecords>("domainVerificationRecords");
 
   return domainVerificationRecordCollection.findOne({ organizationId });
+}
+
+export async function getDomainVerificationRecordByRecordName(
+  recordName: string
+) {
+  const client = await initMongoClient();
+  const db = client.db("awsCognitoSSO");
+  const domainVerificationRecordCollection =
+    db.collection<DomainVerificationRecords>("domainVerificationRecords");
+  return domainVerificationRecordCollection.findOne({ recordName });
 }

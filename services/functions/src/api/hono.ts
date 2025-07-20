@@ -7,6 +7,7 @@ import { GetDomainConfiguration } from "./routes/get-domain-configuration";
 import { cors } from "hono/cors";
 import { handleError } from "./errors";
 import { ConfigureSSO } from "./routes/configure-sso";
+import { GetIdentityProviderForEmail } from "./routes/get-identity-provider-for-email";
 
 const app = new OpenAPIHono<HonoEnv>();
 
@@ -25,5 +26,9 @@ app.openapi(HealthCheck.route, HealthCheck.handler);
 app.openapi(ConfigureDomain.route, ConfigureDomain.handler);
 app.openapi(GetDomainConfiguration.route, GetDomainConfiguration.handler);
 app.openapi(ConfigureSSO.route, ConfigureSSO.handler);
+app.openapi(
+  GetIdentityProviderForEmail.route,
+  GetIdentityProviderForEmail.handler
+);
 
 export const main = handle(app);

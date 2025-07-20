@@ -12,11 +12,11 @@ This repo is a proof of concept for implementing SSO into our system.
 
 - [x] Basic login page where a user signs up with username and password.
 - [x] Page to validate a domain.
-- [ ] Page to be able to configure an identity provider. This includes associating the IdP with the validated domain.
-- [ ] Backend route for page that creates the Identity Provider and maps the validated domain to that identity provider.
-- [ ] Implement Pre sign-up trigger that links federated users to local users.
-- [ ] Update login page to parses the domain from the email and checks if it maps to an IdP, and redirects the login flow to the IdP.
-- [ ] Invite others to the organization.
+- [x] Page to be able to configure an identity provider. This includes associating the IdP with the validated domain.
+- [x] Backend route for page that creates the Identity Provider and maps the validated domain to that identity provider.
+- [ ] Implement Pre sign-up trigger that links federated users to local users. Use https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-identity-federation-consolidate-users.html
+- [x] Update login page to parses the domain from the email and checks if it maps to an IdP, and redirects the login flow to the IdP.
+- [ ] Invite others to the organization. Need placeholder user in the case it's a federated email.
 - [ ] Other user is able to login.
 
 # Validating the Domain
