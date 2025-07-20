@@ -5,12 +5,19 @@ import * as ecs_patterns from "aws-cdk-lib/aws-ecs-patterns";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as acm from "aws-cdk-lib/aws-certificatemanager";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { Construct } from "constructs";
 import path = require("path");
 
 export class CdkPlaygroundStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const secret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "Secret",
+      "cdk-playground-secrets"
+    );
 
     // Create VPC for the ECS cluster
     const vpc = new ec2.Vpc(this, "VPC", {
@@ -62,11 +69,19 @@ export class CdkPlaygroundStack extends cdk.Stack {
             platform: ecrAssets.Platform.LINUX_AMD64,
           }
         ),
+        environment: {
+          SECRET_ARN: secret.secretArn,
+        },
+        logging: ecs.LogDriver.awsLogs({
+          streamPrefix: "nova-server",
+        }),
       })
       .addPortMappings({
         containerPort: 3000,
         hostPort: 3000,
       });
+
+    secret.grantRead(taskDefinition.taskRole);
 
     // Create ECS Fargate Service with Application Load Balancer
     const fargateService =
@@ -81,7 +96,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
           ),
           cluster,
           cpu: 256,
-          desiredCount: 2,
+          desiredCount: 1,
           taskDefinition,
           memoryLimitMiB: 512,
           publicLoadBalancer: true,
@@ -91,7 +106,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
 
     // Add auto scaling
     const scaling = fargateService.service.autoScaleTaskCount({
-      maxCapacity: 4,
+      maxCapacity: 2,
       minCapacity: 1,
     });
 
@@ -112,7 +127,7 @@ export class CdkPlaygroundStack extends cdk.Stack {
       path: "/health",
       port: "3000",
       healthyHttpCodes: "200",
-      interval: cdk.Duration.seconds(30),
+      interval: cdk.Duration.seconds(10),
       timeout: cdk.Duration.seconds(5),
       healthyThresholdCount: 2,
       unhealthyThresholdCount: 3,

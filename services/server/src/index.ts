@@ -1,8 +1,38 @@
 import Fastify from "fastify";
+import formbody from "@fastify/formbody";
+import twilio from "twilio";
+import { retrieveSecret } from "./retrieve-secret.js";
 
 const fastify = Fastify({
   logger: true,
 });
+
+fastify.register(formbody);
+
+async function validateTwilioWebhook(
+  signature: string | string[] | undefined,
+  url: string,
+  body: Record<string, unknown>
+) {
+  if (typeof signature !== "string") {
+    throw new Error("Signature is not a string");
+  }
+
+  const secrets = await retrieveSecret(process.env.SECRET_ARN!, [
+    "TWILIO_AUTH_TOKEN",
+  ]);
+
+  const valid = twilio.validateRequest(
+    secrets.TWILIO_AUTH_TOKEN,
+    signature,
+    url,
+    body
+  );
+
+  if (!valid) {
+    throw new Error("Invalid signature");
+  }
+}
 
 // Health check route
 fastify.get("/health", async (request, reply) => {
@@ -14,13 +44,19 @@ fastify.get("/", async (request, reply) => {
   return { message: "Hello from Fastify Server!", version: "1.0.0" };
 });
 
-// Example API route
-fastify.get("/api/hello", async (request, reply) => {
-  return {
-    message: "Hello World!",
-    timestamp: new Date().toISOString(),
-    userAgent: request.headers["user-agent"],
-  };
+fastify.post("/incoming-call", async (request, reply) => {
+  await validateTwilioWebhook(
+    request.headers["x-twilio-signature"],
+    "https://nova.pebble.sh/incoming-call",
+    request.body as Record<string, unknown>
+  );
+
+  const twiml = new twilio.twiml.VoiceResponse();
+
+  twiml.say("Hello, this is a test call.");
+
+  reply.type("text/xml");
+  reply.send(twiml.toString());
 });
 
 // Start the server
