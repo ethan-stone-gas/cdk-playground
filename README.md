@@ -1,14 +1,9 @@
-# Welcome to your CDK TypeScript project
+# Overview
 
-This is a blank project for CDK development with TypeScript.
+This is proof of concept of an AI support agent using amazon NOVA.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+# Todo
 
-## Useful commands
-
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+- [ ] Basic setup with Amazon NOVA integrated with Twilio. Nothing special just a conversation.
+- [ ] Set up example tool call. Use weather API for now.
+- [ ] Setup integration with Lynkwell API. Ask for the status of a station given the short code.
