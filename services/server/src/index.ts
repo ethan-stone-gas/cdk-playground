@@ -67,7 +67,7 @@ fastify.get("/", async (request, reply) => {
 fastify.post("/incoming-call", async (request, reply) => {
   await validateTwilioWebhook(
     request.headers["x-twilio-signature"],
-    "https://nova.pebble.sh/incoming-call",
+    "https://cdk-playground-production.up.railway.app/incoming-call",
     request.body as Record<string, unknown>
   );
 
@@ -75,7 +75,7 @@ fastify.post("/incoming-call", async (request, reply) => {
 
   twiml.connect().stream({
     name: "AI Agent Audio Stream",
-    url: "wss://nova.pebble.sh/media-stream",
+    url: "wss://cdk-playground-production.up.railway.app/media-stream",
   });
 
   reply.type("text/xml");
@@ -86,7 +86,7 @@ fastify.register(async (fastify) => {
   fastify.get("/media-stream", { websocket: true }, async (connection, req) => {
     await validateTwilioWebhook(
       req.headers["x-twilio-signature"],
-      `wss://nova.pebble.sh${req.originalUrl}`,
+      `wss://cdk-playground-production.up.railway.app/${req.originalUrl}`,
       {}
     );
 
