@@ -86,7 +86,7 @@ fastify.register(async (fastify) => {
   fastify.get("/media-stream", { websocket: true }, async (connection, req) => {
     await validateTwilioWebhook(
       req.headers["x-twilio-signature"],
-      `wss://cdk-playground-production.up.railway.app/${req.originalUrl}`,
+      `wss://cdk-playground-production.up.railway.app${req.originalUrl}`,
       {}
     );
 
