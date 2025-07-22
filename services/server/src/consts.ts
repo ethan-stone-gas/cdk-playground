@@ -14,7 +14,7 @@ export const DefaultAudioInputConfiguration = {
   audioType: "SPEECH" as AudioType,
   encoding: "base64",
   mediaType: "audio/lpcm" as AudioMediaType,
-  sampleRateHertz: 16000,
+  sampleRateHertz: 8000,
   sampleSizeBits: 16,
   channelCount: 1,
 };
@@ -51,6 +51,6 @@ export const DefaultSystemPrompt =
 
 export const DefaultAudioOutputConfiguration = {
   ...DefaultAudioInputConfiguration,
-  sampleRateHertz: 24000,
-  voiceId: "tiffany",
+  sampleRateHertz: 8000,
+  voiceId: "matthew",
 };
