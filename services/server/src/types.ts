@@ -6,7 +6,11 @@ export interface InferenceConfig {
 
 export type ContentType = "AUDIO" | "TEXT" | "TOOL";
 export type AudioType = "SPEECH";
-export type AudioMediaType = "audio/lpcm";
+export type AudioMediaType =
+  | "audio/wav"
+  | "audio/lpcm"
+  | "audio/mulaw"
+  | "audio/mpeg";
 export type TextMediaType = "text/plain" | "application/json";
 
 export interface AudioConfiguration {

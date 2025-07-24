@@ -1,8 +1,4 @@
-import {
-  type AudioType,
-  type AudioMediaType,
-  type TextMediaType,
-} from "./types";
+import { AudioType, AudioMediaType, TextMediaType } from "./types";
 
 export const DefaultInferenceConfiguration = {
   maxTokens: 1024,
@@ -20,24 +16,10 @@ export const DefaultAudioInputConfiguration = {
 };
 
 export const DefaultToolSchema = JSON.stringify({
+  "$schema": "http://json-schema.org/draft-07/schema#",
   type: "object",
   properties: {},
   required: [],
-});
-
-export const WeatherToolSchema = JSON.stringify({
-  type: "object",
-  properties: {
-    latitude: {
-      type: "string",
-      description: "Geographical WGS84 latitude of the location.",
-    },
-    longitude: {
-      type: "string",
-      description: "Geographical WGS84 longitude of the location.",
-    },
-  },
-  required: ["latitude", "longitude"],
 });
 
 export const DefaultTextConfiguration = {

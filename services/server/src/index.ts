@@ -5,10 +5,7 @@ import twilio from "twilio";
 import { retrieveSecret } from "./retrieve-secret.js";
 import { randomUUID } from "crypto";
 import alawmulaw from "alawmulaw";
-import {
-  NovaSonicBidirectionalStreamClient,
-  StreamSession,
-} from "./nova-client.js";
+import { S2SBidirectionalStreamClient, StreamSession } from "./nova-client.js";
 import { DefaultSystemPrompt } from "./consts.js";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 
@@ -19,7 +16,7 @@ const fastify = Fastify({
 fastify.register(formbody);
 fastify.register(websocket);
 
-const bedrockClient = new NovaSonicBidirectionalStreamClient({
+const bedrockClient = new S2SBidirectionalStreamClient({
   clientConfig: {
     region: "us-east-1",
     credentials: fromNodeProviderChain(),
