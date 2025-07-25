@@ -4,7 +4,8 @@
   "scripts": {},
   "devDependencies": {
     "@tsconfig/node22": "^22.0.1",
-    "@types/aws-lambda": "^8.10.143"
+    "@types/aws-lambda": "^8.10.143",
+    "tsx": "^4.20.3"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.806.0",
