@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const AudioMediaType = z.enum([
+  "audio/wav",
+  "audio/lpcm",
+  "audio/mulaw",
+  "audio/mpeg",
+]);
+
+const TextMediaType = z.enum(["text/plain", "application/json"]);
+
 /**
  * The sessionStart start event is how the entire nova session is started.
  * It configures the model parameters such as maxTokens, topP, and temperature.
@@ -25,10 +34,10 @@ export const PromptStartEvent = z.object({
     promptStart: z.object({
       promptName: z.string(),
       textOutputConfiguration: z.object({
-        mediaType: z.literal("text/plain"),
+        mediaType: TextMediaType,
       }),
       audioOutputConfiguration: z.object({
-        mediaType: z.literal("audio/lpcm"),
+        mediaType: AudioMediaType,
         sampleRateHertz: z.union([
           z.literal(8000),
           z.literal(16000),
@@ -53,7 +62,7 @@ export const PromptStartEvent = z.object({
         audioType: z.literal("SPEECH"),
       }),
       toolUseOutputConfiguration: z.object({
-        mediaType: z.literal("text/json"),
+        mediaType: TextMediaType,
       }),
       toolConfiguration: z.object({
         tools: z.array(
@@ -76,10 +85,10 @@ const AudioInputContentStart = z.object({
   promptName: z.string(),
   contentName: z.string(),
   type: z.literal("AUDIO"),
-  interactive: z.literal(true),
+  interactive: z.boolean(),
   role: z.literal("USER"),
   audioInputConfiguration: z.object({
-    mediaType: z.literal("audio/lpcm"),
+    mediaType: AudioMediaType,
     sampleRateHertz: z.union([
       z.literal(8000),
       z.literal(16000),
@@ -96,24 +105,24 @@ const TextInputContentStart = z.object({
   promptName: z.string(),
   contentName: z.string(),
   type: z.literal("TEXT"),
-  interactive: z.literal(false),
+  interactive: z.boolean(),
   role: z.enum(["USER", "SYSTEM", "ASSISTANT"]),
   textInputConfiguration: z.object({
-    mediaType: z.literal("text/plain"),
+    mediaType: TextMediaType,
   }),
 });
 
 const ToolResultContentStart = z.object({
   promptName: z.string(),
   contentName: z.string(),
-  interactive: z.literal(false),
+  interactive: z.boolean(),
   type: z.literal("TOOL"),
   role: z.literal("TOOL"),
   toolResultInputConfiguration: z.object({
     toolUseId: z.string(),
     type: z.literal("TEXT"),
     textInputConfiguration: z.object({
-      mediaType: z.literal("text/plain"),
+      mediaType: TextMediaType,
     }),
   }),
 });
@@ -261,7 +270,7 @@ const AudioOutputContentStartEvent = z.object({
   type: z.literal("AUDIO"),
   role: z.literal("ASSISTANT"),
   audioOutputConfiguration: z.object({
-    mediaType: z.literal("audio/lpcm"),
+    mediaType: AudioMediaType,
     sampleRateHertz: z.union([
       z.literal(8000),
       z.literal(16000),
@@ -282,7 +291,7 @@ const TextOutputContentStartEvent = z.object({
   type: z.literal("TEXT"),
   role: z.literal("ASSISTANT"),
   textOutputConfiguration: z.object({
-    mediaType: z.literal("text/plain"),
+    mediaType: TextMediaType,
   }),
 });
 
@@ -294,7 +303,7 @@ const ToolUseContentStartEvent = z.object({
   type: z.literal("TOOL"),
   role: z.literal("TOOL"),
   toolUseOutputConfiguration: z.object({
-    mediaType: z.literal("application/json"),
+    mediaType: TextMediaType,
   }),
 });
 
@@ -393,7 +402,7 @@ export const CompletionEndEvent = z.object({
   }),
 });
 
-export const InputEvents = {
+export const InputEventSchemas = {
   SessionStartEvent,
   PromptStartEvent,
   InputContentStartEvent,
@@ -405,7 +414,7 @@ export const InputEvents = {
   SessionEndEvent,
 };
 
-export const OutputEvents = {
+export const OutputEventSchemas = {
   UsageEvent,
   CompletionStartEvent,
   OutputContentStartEvent,
@@ -446,4 +455,14 @@ export namespace InputEvents {
   export type InputContentEndEvent = z.infer<typeof InputContentEndEvent>;
   export type PromptEndEvent = z.infer<typeof PromptEndEvent>;
   export type SessionEndEvent = z.infer<typeof SessionEndEvent>;
+  export type AllEvents =
+    | SessionStartEvent
+    | PromptStartEvent
+    | InputContentStartEvent
+    | AudioInputContentEvent
+    | TextInputContentEvent
+    | ToolResultEvent
+    | InputContentEndEvent
+    | PromptEndEvent
+    | SessionEndEvent;
 }

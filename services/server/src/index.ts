@@ -5,7 +5,10 @@ import twilio from "twilio";
 import { retrieveSecret } from "./retrieve-secret.js";
 import { randomUUID } from "crypto";
 import alawmulaw from "alawmulaw";
-import { S2SBidirectionalStreamClient, StreamSession } from "./nova-client.js";
+import {
+  S2SBidirectionalStreamClient,
+  StreamSession,
+} from "./nova-client-typesafe.js";
 import { DefaultSystemPrompt } from "./consts.js";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 
@@ -107,7 +110,7 @@ fastify.register(async (fastify) => {
             break;
           case "start":
             await session.setupSystemPrompt(undefined, DefaultSystemPrompt);
-            await session.setupStartAudio();
+            await session.setupStartAudioContent();
 
             session.twilioStreamSid = data.streamSid;
             callSid = data.start.callSid; //call sid to update while redirecting it to SIP endpoint
@@ -126,7 +129,7 @@ fastify.register(async (fastify) => {
 
             //send audio to nova client
             //const audioBuffer = data.media.payload;
-            await session.streamAudio(audioBuffer);
+            await session.streamAudioContent(audioBuffer);
             break;
 
           default:
@@ -151,7 +154,10 @@ fastify.register(async (fastify) => {
     });
 
     session.onEvent("textOutput", (data) => {
-      console.log("Text output:", data.content.substring(0, 50) + "...");
+      console.log(
+        "Text output:",
+        data.event.textOutput.content.substring(0, 50) + "..."
+      );
       //socket.emit('textOutput', data);
     });
 
@@ -162,7 +168,7 @@ fastify.register(async (fastify) => {
       //console.log('audioOutput')
 
       // Decode base64 to get the PCM buffer
-      const buffer = Buffer.from(data["content"], "base64");
+      const buffer = Buffer.from(data.event.audioOutput.content, "base64");
       // Convert to Int16Array (your existing code is correct here)
       const pcmSamples = new Int16Array(
         buffer.buffer,
@@ -193,14 +199,9 @@ fastify.register(async (fastify) => {
     });
 
     session.onEvent("toolUse", async (data) => {
-      console.log("Tool use detected:", data.toolName);
+      console.log("Tool use detected:", data.event.toolUse.toolName);
       //TODO: handle tool use
       //socket.emit('toolUse', data);
-    });
-
-    session.onEvent("toolResult", (data) => {
-      console.log("Tool result received");
-      //socket.emit('toolResult', data);
     });
 
     session.onEvent("contentEnd", (data) => {

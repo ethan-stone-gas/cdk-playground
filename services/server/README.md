@@ -129,3 +129,38 @@ Example:
 ## Node.js Version
 
 This project uses Node.js 22.x for optimal performance and latest features.
+
+# Typesafe Nova Client Todo
+
+There are two mechanisms that need to be done.
+
+1. Sending events across the stream. This is done via the async iterable we create in createSessionAsyncIterable.
+2. Processing messages from the stream. This is done via the async iterable that is returns from the InvokeModelWithBidirectionalStreamCommand.
+
+## Input Events
+
+The following events can be sent across the stream.
+
+- [ ] sessionStart
+- [ ] promptStart
+- [ ] contentStart
+- [ ] audioInput
+- [ ] textInput
+- [ ] toolResult
+- [ ] contentEnd
+- [ ] promptEnd
+- [ ] sessionEnd
+
+## Output Events
+
+The following events can be received from the stream.
+
+- [ ] usage
+- [ ] completionStart
+- [ ] contentStart
+- [ ] audioOutput
+- [ ] textOutput
+- [ ] toolUse
+- [ ] contentEnd
+- [ ] completionEnd
+- [ ] all // not actually send by nova, but a catch all in terms of programmatically wanting to handle all events via a single handler.

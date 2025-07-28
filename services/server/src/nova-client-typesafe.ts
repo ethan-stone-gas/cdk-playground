@@ -22,8 +22,42 @@ import {
   DefaultTextConfiguration,
 } from "./consts";
 import { availableTools, toolProcessor } from "./mock-tools";
-import { OutputEvents } from "./nova-events";
+import {
+  type InputEvents,
+  type OutputEvents,
+  OutputEventSchemas,
+} from "./nova-events";
 import z from "zod";
+
+type EventHandlerTypes =
+  | "usage"
+  | "completionStart"
+  | "contentStart"
+  | "audioOutput"
+  | "textOutput"
+  | "toolUse"
+  | "contentEnd"
+  | "completionEnd"
+  | "streamComplete"
+  | "error";
+
+type EventHandlerTypeToPayload = {
+  usage: OutputEvents.UsageEvent;
+  completionStart: OutputEvents.CompletionStartEvent;
+  contentStart: OutputEvents.OutputContentStartEvent;
+  audioOutput: OutputEvents.AudioOutputContentEvent;
+  textOutput: OutputEvents.TextOutputContentEvent;
+  toolUse: OutputEvents.ToolUseEvent;
+  contentEnd: OutputEvents.OutputContentEndEvent;
+  completionEnd: OutputEvents.CompletionEndEvent;
+  streamComplete: {
+    timestsamp: Date;
+  };
+  error: {
+    source: string;
+    error: unknown;
+  };
+};
 
 export interface S2SBidirectionalStreamClientConfig {
   requestHandlerConfig?:
@@ -46,9 +80,9 @@ export class StreamSession {
   ) {}
 
   // Register event handlers for this specific session
-  public onEvent(
-    eventType: string,
-    handler: (data: any) => void
+  public onEvent<T extends EventHandlerTypes>(
+    eventType: T,
+    handler: (data: EventHandlerTypeToPayload[T]) => void
   ): StreamSession {
     this.client.registerEventHandler(this.sessionId, eventType, handler);
     return this; // For chaining
@@ -69,14 +103,14 @@ export class StreamSession {
     );
   }
 
-  public async setupStartAudio(
+  public async setupStartAudioContent(
     audioConfig: typeof DefaultAudioInputConfiguration = DefaultAudioInputConfiguration
   ): Promise<void> {
     this.client.setupStartAudioEvent(this.sessionId, audioConfig);
   }
 
   // Stream audio for this session
-  public async streamAudio(audioData: Buffer): Promise<void> {
+  public async streamAudioContent(audioData: Buffer): Promise<void> {
     // Check queue size to avoid memory issues
     if (this.audioBufferQueue.length >= this.maxQueueSize) {
       // Queue is full, drop oldest chunk
@@ -86,11 +120,11 @@ export class StreamSession {
 
     // Queue the audio chunk for streaming
     this.audioBufferQueue.push(audioData);
-    this.processAudioQueue();
+    this.processAudioContentQueue();
   }
 
   // Process audio queue for continuous streaming
-  private async processAudioQueue() {
+  private async processAudioContentQueue() {
     if (
       this.isProcessingAudio ||
       this.audioBufferQueue.length === 0 ||
@@ -111,7 +145,7 @@ export class StreamSession {
       ) {
         const audioChunk = this.audioBufferQueue.shift();
         if (audioChunk) {
-          await this.client.streamAudioChunk(this.sessionId, audioChunk);
+          await this.client.streamAudioContentChunk(this.sessionId, audioChunk);
           processedChunks++;
         }
       }
@@ -120,7 +154,7 @@ export class StreamSession {
 
       // If there are still items in the queue, schedule the next processing using setTimeout
       if (this.audioBufferQueue.length > 0 && this.isActive) {
-        setTimeout(() => this.processAudioQueue(), 0);
+        setTimeout(() => this.processAudioContentQueue(), 0);
       }
     }
   }
@@ -152,11 +186,10 @@ export class StreamSession {
 
 // Session data type
 interface SessionData {
-  queue: Array<any>;
-  queueSignal: Subject<void>;
+  inputEventQueue: Array<InputEvents.AllEvents>;
+  inputEventQueueSignal: Subject<void>;
   closeSignal: Subject<void>;
-  responseSubject: Subject<any>;
-  toolUseContent: any;
+  toolUseContent: string | null;
   toolUseId: string;
   toolName: string;
   responseHandlers: Map<string, (data: any) => void>;
@@ -233,10 +266,9 @@ export class S2SBidirectionalStreamClient {
     }
 
     const session: SessionData = {
-      queue: [],
-      queueSignal: new Subject<void>(),
+      inputEventQueue: [],
+      inputEventQueueSignal: new Subject<void>(),
       closeSignal: new Subject<void>(),
-      responseSubject: new Subject<any>(),
       toolUseContent: null,
       toolUseId: "",
       toolName: "",
@@ -266,7 +298,7 @@ export class S2SBidirectionalStreamClient {
       this.setupSessionStartEvent(sessionId);
 
       // Create the bidirectional stream with session-specific async iterator
-      const asyncIterable = this.createSessionAsyncIterable(sessionId);
+      const asyncIterable = this.createSessionInputEventProcessor(sessionId);
 
       console.log(`Starting bidirectional stream for session ${sessionId}...`);
 
@@ -329,7 +361,12 @@ export class S2SBidirectionalStreamClient {
     }
   }
 
-  private createSessionAsyncIterable(
+  /**
+   * Creates an async iterable for sending input events to the session.
+   * @param sessionId The session ID for which to create the async iterable.
+   * @returns An async iterable for sending input events to the session.
+   */
+  private createSessionInputEventProcessor(
     sessionId: string
   ): AsyncIterable<InvokeModelWithBidirectionalStreamInput> {
     if (!this.isSessionActive(sessionId)) {
@@ -371,10 +408,10 @@ export class S2SBidirectionalStreamClient {
                 return { value: undefined, done: true };
               }
               // Wait for items in the queue or close signal
-              if (session.queue.length === 0) {
+              if (session.inputEventQueue.length === 0) {
                 try {
                   await Promise.race([
-                    firstValueFrom(session.queueSignal.pipe(take(1))),
+                    firstValueFrom(session.inputEventQueueSignal.pipe(take(1))),
                     firstValueFrom(session.closeSignal.pipe(take(1))).then(
                       () => {
                         throw new Error("Stream closed");
@@ -400,13 +437,13 @@ export class S2SBidirectionalStreamClient {
               }
 
               // If queue is still empty or session is inactive, we're done
-              if (session.queue.length === 0 || !session.isActive) {
+              if (session.inputEventQueue.length === 0 || !session.isActive) {
                 console.log(`Queue empty or session inactive: ${sessionId}`);
                 return { value: undefined, done: true };
               }
 
               // Get next item from the session's queue
-              const nextEvent = session.queue.shift();
+              const nextEvent = session.inputEventQueue.shift();
               eventCount++;
 
               //console.log(`Sending event #${eventCount} for session ${sessionId}: ${JSON.stringify(nextEvent).substring(0, 100)}...`);
@@ -481,19 +518,19 @@ export class S2SBidirectionalStreamClient {
                 handler: (data: any) => Promise<void>;
               }[] = [
                 {
-                  schema: OutputEvents.UsageEvent,
+                  schema: OutputEventSchemas.UsageEvent,
                   handler: async (data: OutputEvents.UsageEvent) => {
                     this.dispatchEvent(sessionId, "usage", data);
                   },
                 },
                 {
-                  schema: OutputEvents.CompletionStartEvent,
+                  schema: OutputEventSchemas.CompletionStartEvent,
                   handler: async (data: OutputEvents.CompletionStartEvent) => {
                     this.dispatchEvent(sessionId, "completionStart", data);
                   },
                 },
                 {
-                  schema: OutputEvents.OutputContentStartEvent,
+                  schema: OutputEventSchemas.OutputContentStartEvent,
                   handler: async (
                     data: OutputEvents.OutputContentStartEvent
                   ) => {
@@ -501,7 +538,7 @@ export class S2SBidirectionalStreamClient {
                   },
                 },
                 {
-                  schema: OutputEvents.AudioOutputContentEvent,
+                  schema: OutputEventSchemas.AudioOutputContentEvent,
                   handler: async (
                     data: OutputEvents.AudioOutputContentEvent
                   ) => {
@@ -509,7 +546,7 @@ export class S2SBidirectionalStreamClient {
                   },
                 },
                 {
-                  schema: OutputEvents.TextOutputContentEvent,
+                  schema: OutputEventSchemas.TextOutputContentEvent,
                   handler: async (
                     data: OutputEvents.TextOutputContentEvent
                   ) => {
@@ -517,17 +554,17 @@ export class S2SBidirectionalStreamClient {
                   },
                 },
                 {
-                  schema: OutputEvents.ToolUseEvent,
+                  schema: OutputEventSchemas.ToolUseEvent,
                   handler: async (data: OutputEvents.ToolUseEvent) => {
                     this.dispatchEvent(sessionId, "toolUse", data);
 
-                    session.toolUseContent = data.event.toolUse;
+                    session.toolUseContent = data.event.toolUse.content;
                     session.toolUseId = data.event.toolUse.toolUseId;
                     session.toolName = data.event.toolUse.toolName;
                   },
                 },
                 {
-                  schema: OutputEvents.OutputContentEndEvent,
+                  schema: OutputEventSchemas.OutputContentEndEvent,
                   handler: async (data: OutputEvents.OutputContentEndEvent) => {
                     this.dispatchEvent(sessionId, "contentEnd", data);
                     if (data.event.contentEnd.type === "TOOL") {
@@ -537,7 +574,7 @@ export class S2SBidirectionalStreamClient {
 
                       const externalModelResult = await toolProcessor(
                         session.toolName.toLowerCase(),
-                        session.toolUseContent.content
+                        session.toolUseContent ?? ""
                       );
 
                       this.sendToolResult(
@@ -549,7 +586,7 @@ export class S2SBidirectionalStreamClient {
                   },
                 },
                 {
-                  schema: OutputEvents.CompletionEndEvent,
+                  schema: OutputEventSchemas.CompletionEndEvent,
                   handler: async (data: OutputEvents.CompletionEndEvent) => {
                     this.dispatchEvent(sessionId, "completionEnd", data);
                   },
@@ -588,8 +625,8 @@ export class S2SBidirectionalStreamClient {
             event.modelStreamErrorException
           );
           this.dispatchEvent(sessionId, "error", {
-            type: "modelStreamErrorException",
-            details: event.modelStreamErrorException,
+            source: "modelStreamErrorException",
+            error: event.modelStreamErrorException,
           });
         } else if (event.internalServerException) {
           console.error(
@@ -597,8 +634,8 @@ export class S2SBidirectionalStreamClient {
             event.internalServerException
           );
           this.dispatchEvent(sessionId, "error", {
-            type: "internalServerException",
-            details: event.internalServerException,
+            source: "internalServerException",
+            error: event.internalServerException,
           });
         }
       }
@@ -607,7 +644,7 @@ export class S2SBidirectionalStreamClient {
         `Response stream processing complete for session ${sessionId}`
       );
       this.dispatchEvent(sessionId, "streamComplete", {
-        timestamp: new Date().toISOString(),
+        timestsamp: new Date(),
       });
     } catch (error) {
       console.error(
@@ -616,20 +653,22 @@ export class S2SBidirectionalStreamClient {
       );
       this.dispatchEvent(sessionId, "error", {
         source: "responseStream",
-        message: "Error processing response stream",
-        details: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   // Add an event to a session's queue
-  private addEventToSessionQueue(sessionId: string, event: any): void {
+  private queueInputEvent(
+    sessionId: string,
+    event: InputEvents.AllEvents
+  ): void {
     const session = this.activeSessions.get(sessionId);
     if (!session || !session.isActive) return;
 
     this.updateSessionActivity(sessionId);
-    session.queue.push(event);
-    session.queueSignal.next();
+    session.inputEventQueue.push(event);
+    session.inputEventQueueSignal.next();
   }
 
   // Set up initial events for a session
@@ -639,7 +678,7 @@ export class S2SBidirectionalStreamClient {
     if (!session) return;
 
     // Session start event
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         sessionStart: {
           inferenceConfiguration: session.inferenceConfig,
@@ -652,7 +691,7 @@ export class S2SBidirectionalStreamClient {
     const session = this.activeSessions.get(sessionId);
     if (!session) return;
     // Prompt start event
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         promptStart: {
           promptName: session.promptName,
@@ -678,36 +717,40 @@ export class S2SBidirectionalStreamClient {
     systemPromptContent: string = DefaultSystemPrompt
   ): void {
     console.log(`Setting up systemPrompt events for session ${sessionId}...`);
+
     const session = this.activeSessions.get(sessionId);
+
     if (!session) return;
+
     // Text content start
     const textPromptID = randomUUID();
-    this.addEventToSessionQueue(sessionId, {
+
+    this.queueInputEvent(sessionId, {
       event: {
         contentStart: {
           promptName: session.promptName,
           contentName: textPromptID,
           type: "TEXT",
           interactive: true,
+          role: "SYSTEM",
           textInputConfiguration: textConfig,
         },
       },
     });
 
     // Text input content
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         textInput: {
           promptName: session.promptName,
           contentName: textPromptID,
           content: systemPromptContent,
-          role: "SYSTEM",
         },
       },
     });
 
     // Text content end
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         contentEnd: {
           promptName: session.promptName,
@@ -725,16 +768,18 @@ export class S2SBidirectionalStreamClient {
       `Setting up startAudioContent event for session ${sessionId}...`
     );
     const session = this.activeSessions.get(sessionId);
+
     if (!session) return;
 
     console.log(`Using audio content ID: ${session.audioContentId}`);
     // Audio content start
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         contentStart: {
           promptName: session.promptName,
           contentName: session.audioContentId,
           type: "AUDIO",
+          role: "USER",
           interactive: true,
           audioInputConfiguration: audioConfig,
         },
@@ -745,24 +790,25 @@ export class S2SBidirectionalStreamClient {
   }
 
   // Stream an audio chunk for a session
-  public async streamAudioChunk(
+  public async streamAudioContentChunk(
     sessionId: string,
     audioData: Buffer
   ): Promise<void> {
     const session = this.activeSessions.get(sessionId);
+
     if (!session || !session.isActive || !session.audioContentId) {
       throw new Error(`Invalid session ${sessionId} for audio streaming`);
     }
+
     // Convert audio to base64
     const base64Data = audioData.toString("base64");
 
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         audioInput: {
           promptName: session.promptName,
           contentName: session.audioContentId,
           content: base64Data,
-          role: "USER",
         },
       },
     });
@@ -772,7 +818,7 @@ export class S2SBidirectionalStreamClient {
   private async sendToolResult(
     sessionId: string,
     toolUseId: string,
-    result: string
+    result: Object
   ): Promise<void> {
     const session = this.activeSessions.get(sessionId);
     console.log("inside tool result");
@@ -784,13 +830,14 @@ export class S2SBidirectionalStreamClient {
     const contentId = randomUUID();
 
     // Tool content start
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         contentStart: {
           promptName: session.promptName,
           contentName: contentId,
           interactive: false,
           type: "TOOL",
+          role: "TOOL",
           toolResultInputConfiguration: {
             toolUseId: toolUseId,
             type: "TEXT",
@@ -805,19 +852,18 @@ export class S2SBidirectionalStreamClient {
     // Tool content input
     const resultContent =
       typeof result === "string" ? result : JSON.stringify(result);
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         toolResult: {
           promptName: session.promptName,
           contentName: contentId,
           content: resultContent,
-          role: "TOOL",
         },
       },
     });
 
     // Tool content end
-    this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         contentEnd: {
           promptName: session.promptName,
@@ -833,7 +879,7 @@ export class S2SBidirectionalStreamClient {
     const session = this.activeSessions.get(sessionId);
     if (!session || !session.isAudioContentStartSent) return;
 
-    await this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         contentEnd: {
           promptName: session.promptName,
@@ -850,7 +896,7 @@ export class S2SBidirectionalStreamClient {
     const session = this.activeSessions.get(sessionId);
     if (!session || !session.isPromptStartSent) return;
 
-    await this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         promptEnd: {
           promptName: session.promptName,
@@ -866,7 +912,7 @@ export class S2SBidirectionalStreamClient {
     const session = this.activeSessions.get(sessionId);
     if (!session) return;
 
-    await this.addEventToSessionQueue(sessionId, {
+    this.queueInputEvent(sessionId, {
       event: {
         sessionEnd: {},
       },
@@ -885,10 +931,10 @@ export class S2SBidirectionalStreamClient {
   }
 
   // Register an event handler for a session
-  public registerEventHandler(
+  public registerEventHandler<T extends EventHandlerTypes>(
     sessionId: string,
-    eventType: string,
-    handler: (data: any) => void
+    eventType: T,
+    handler: (data: EventHandlerTypeToPayload[T]) => void
   ): void {
     const session = this.activeSessions.get(sessionId);
     if (!session) {
@@ -898,10 +944,10 @@ export class S2SBidirectionalStreamClient {
   }
 
   // Dispatch an event to registered handlers
-  private dispatchEvent(
+  private dispatchEvent<T extends EventHandlerTypes>(
     sessionId: string,
-    eventType: string,
-    data: OutputEvents.AllEvents
+    eventType: T,
+    data: EventHandlerTypeToPayload[T]
   ): void {
     const session = this.activeSessions.get(sessionId);
     if (!session) return;

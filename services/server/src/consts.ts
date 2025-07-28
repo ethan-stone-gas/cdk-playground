@@ -13,10 +13,10 @@ export const DefaultAudioInputConfiguration = {
   sampleRateHertz: 8000,
   sampleSizeBits: 16,
   channelCount: 1,
-};
+} as const;
 
 export const DefaultToolSchema = JSON.stringify({
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  $schema: "http://json-schema.org/draft-07/schema#",
   type: "object",
   properties: {},
   required: [],
@@ -24,7 +24,7 @@ export const DefaultToolSchema = JSON.stringify({
 
 export const DefaultTextConfiguration = {
   mediaType: "text/plain" as TextMediaType,
-};
+} as const;
 
 export const DefaultSystemPrompt =
   "You are a friend. The user and you will engage in a spoken " +
@@ -35,4 +35,4 @@ export const DefaultAudioOutputConfiguration = {
   ...DefaultAudioInputConfiguration,
   sampleRateHertz: 8000,
   voiceId: "matthew",
-};
+} as const;
