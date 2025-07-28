@@ -21,8 +21,9 @@ import {
   DefaultSystemPrompt,
   DefaultTextConfiguration,
 } from "./consts";
-
 import { availableTools, toolProcessor } from "./mock-tools";
+import { OutputEvents } from "./nova-events";
+import z from "zod";
 
 export interface S2SBidirectionalStreamClientConfig {
   requestHandlerConfig?:
@@ -37,7 +38,7 @@ export class StreamSession {
   private maxQueueSize = 200; // Maximum number of audio chunks to queue
   private isProcessingAudio = false;
   private isActive = true;
-  public streamSid = ""; //for twilio stream
+  public twilioStreamSid = ""; //for twilio stream
 
   constructor(
     private sessionId: string,
@@ -474,80 +475,99 @@ export class S2SBidirectionalStreamClient {
 
             try {
               const jsonResponse = JSON.parse(textResponse);
-              if (jsonResponse.event?.contentStart) {
-                this.dispatchEvent(
-                  sessionId,
-                  "contentStart",
-                  jsonResponse.event.contentStart
-                );
-              } else if (jsonResponse.event?.textOutput) {
-                this.dispatchEvent(
-                  sessionId,
-                  "textOutput",
-                  jsonResponse.event.textOutput
-                );
-              } else if (jsonResponse.event?.audioOutput) {
-                this.dispatchEvent(
-                  sessionId,
-                  "audioOutput",
-                  jsonResponse.event.audioOutput
-                );
-              } else if (jsonResponse.event?.toolUse) {
-                this.dispatchEvent(
-                  sessionId,
-                  "toolUse",
-                  jsonResponse.event.toolUse
+
+              const outputEventHandlers: {
+                schema: z.ZodType<any>;
+                handler: (data: any) => Promise<void>;
+              }[] = [
+                {
+                  schema: OutputEvents.UsageEvent,
+                  handler: async (data: OutputEvents.UsageEvent) => {
+                    this.dispatchEvent(sessionId, "usage", data);
+                  },
+                },
+                {
+                  schema: OutputEvents.CompletionStartEvent,
+                  handler: async (data: OutputEvents.CompletionStartEvent) => {
+                    this.dispatchEvent(sessionId, "completionStart", data);
+                  },
+                },
+                {
+                  schema: OutputEvents.OutputContentStartEvent,
+                  handler: async (
+                    data: OutputEvents.OutputContentStartEvent
+                  ) => {
+                    this.dispatchEvent(sessionId, "contentStart", data);
+                  },
+                },
+                {
+                  schema: OutputEvents.AudioOutputContentEvent,
+                  handler: async (
+                    data: OutputEvents.AudioOutputContentEvent
+                  ) => {
+                    this.dispatchEvent(sessionId, "audioOutput", data);
+                  },
+                },
+                {
+                  schema: OutputEvents.TextOutputContentEvent,
+                  handler: async (
+                    data: OutputEvents.TextOutputContentEvent
+                  ) => {
+                    this.dispatchEvent(sessionId, "textOutput", data);
+                  },
+                },
+                {
+                  schema: OutputEvents.ToolUseEvent,
+                  handler: async (data: OutputEvents.ToolUseEvent) => {
+                    this.dispatchEvent(sessionId, "toolUse", data);
+
+                    session.toolUseContent = data.event.toolUse;
+                    session.toolUseId = data.event.toolUse.toolUseId;
+                    session.toolName = data.event.toolUse.toolName;
+                  },
+                },
+                {
+                  schema: OutputEvents.OutputContentEndEvent,
+                  handler: async (data: OutputEvents.OutputContentEndEvent) => {
+                    this.dispatchEvent(sessionId, "contentEnd", data);
+                    if (data.event.contentEnd.type === "TOOL") {
+                      console.log(
+                        `processing tool use for session ${sessionId}`
+                      );
+
+                      const externalModelResult = await toolProcessor(
+                        session.toolName.toLowerCase(),
+                        session.toolUseContent.content
+                      );
+
+                      this.sendToolResult(
+                        sessionId,
+                        session.toolUseId,
+                        externalModelResult
+                      );
+                    }
+                  },
+                },
+                {
+                  schema: OutputEvents.CompletionEndEvent,
+                  handler: async (data: OutputEvents.CompletionEndEvent) => {
+                    this.dispatchEvent(sessionId, "completionEnd", data);
+                  },
+                },
+              ];
+
+              for (const handler of outputEventHandlers) {
+                const parsedData = await handler.schema.safeParseAsync(
+                  jsonResponse
                 );
 
-                // Store tool use information for later
-                session.toolUseContent = jsonResponse.event.toolUse;
-                session.toolUseId = jsonResponse.event.toolUse.toolUseId;
-                session.toolName = jsonResponse.event.toolUse.toolName;
-              } else if (
-                jsonResponse.event?.contentEnd &&
-                jsonResponse.event?.contentEnd?.type === "TOOL"
-              ) {
-                // Process tool use
-                console.log(`Processing tool use for session ${sessionId}`);
-                this.dispatchEvent(sessionId, "toolEnd", {
-                  toolUseContent: session.toolUseContent,
-                  toolUseId: session.toolUseId,
-                  toolName: session.toolName,
-                });
-
-                console.log("calling tooluse");
-                // Call external model
-                //const externalModelResult = await this.processToolUse(session.toolName, session.toolUseContent);
-                const externalModelResult = await toolProcessor(
-                  session.toolName.toLowerCase(),
-                  session.toolUseContent.content
-                );
-
-                // Send tool result
-                this.sendToolResult(
-                  sessionId,
-                  session.toolUseId,
-                  externalModelResult
-                );
-
-                // Also dispatch event about tool result
-                this.dispatchEvent(sessionId, "toolResult", {
-                  toolUseId: session.toolUseId,
-                  result: externalModelResult,
-                });
-              } else {
-                // Handle other events
-                const eventKeys = Object.keys(jsonResponse.event || {});
-                console.log(`Event keys for session ${sessionId}:`, eventKeys);
-                console.log(`Handling other events`);
-                if (eventKeys.length > 0) {
-                  this.dispatchEvent(
-                    sessionId,
-                    eventKeys[0],
-                    jsonResponse.event[eventKeys[0]]
+                if (parsedData.success) {
+                  await handler.handler(parsedData.data);
+                } else {
+                  console.error(
+                    `Error parsing ${handler.schema.description} for session ${sessionId}:`,
+                    parsedData.error
                   );
-                } else if (Object.keys(jsonResponse).length > 0) {
-                  this.dispatchEvent(sessionId, "unknown", jsonResponse);
                 }
               }
             } catch (e) {
@@ -752,7 +772,7 @@ export class S2SBidirectionalStreamClient {
   private async sendToolResult(
     sessionId: string,
     toolUseId: string,
-    result: any
+    result: string
   ): Promise<void> {
     const session = this.activeSessions.get(sessionId);
     console.log("inside tool result");
@@ -878,7 +898,11 @@ export class S2SBidirectionalStreamClient {
   }
 
   // Dispatch an event to registered handlers
-  private dispatchEvent(sessionId: string, eventType: string, data: any): void {
+  private dispatchEvent(
+    sessionId: string,
+    eventType: string,
+    data: OutputEvents.AllEvents
+  ): void {
     const session = this.activeSessions.get(sessionId);
     if (!session) return;
 
