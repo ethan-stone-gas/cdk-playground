@@ -20,13 +20,13 @@ import {
   DefaultAudioOutputConfiguration,
   DefaultSystemPrompt,
   DefaultTextConfiguration,
-} from "./consts";
-import { availableTools, toolProcessor } from "./mock-tools";
+} from "./consts.js";
+import { availableTools, toolProcessor } from "./mock-tools.js";
 import {
   type InputEvents,
   type OutputEvents,
   OutputEventSchemas,
-} from "./nova-events";
+} from "./nova-events.js";
 import z from "zod";
 
 type EventHandlerTypes =
