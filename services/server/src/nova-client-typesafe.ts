@@ -513,6 +513,8 @@ export class S2SBidirectionalStreamClient {
             try {
               const jsonResponse = JSON.parse(textResponse);
 
+              console.log(jsonResponse);
+
               const outputEventHandlers: {
                 schema: z.ZodType<any>;
                 handler: (data: any) => Promise<void>;
