@@ -513,8 +513,6 @@ export class S2SBidirectionalStreamClient {
             try {
               const jsonResponse = JSON.parse(textResponse);
 
-              console.log(jsonResponse);
-
               const outputEventHandlers: {
                 schema: z.ZodType<any>;
                 handler: (data: any) => Promise<void>;
@@ -603,6 +601,7 @@ export class S2SBidirectionalStreamClient {
                 if (parsedData.success) {
                   await handler.handler(parsedData.data);
                 } else {
+                  console.log(jsonResponse);
                   console.error(
                     `Error parsing ${handler.schema.description} for session ${sessionId}:`,
                     parsedData.error
