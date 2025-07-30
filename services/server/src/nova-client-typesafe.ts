@@ -21,7 +21,7 @@ import {
   DefaultSystemPrompt,
   DefaultTextConfiguration,
 } from "./consts.js";
-import { availableTools, toolProcessor } from "./mock-tools.js";
+import { availableTools, toolProcessor } from "./tools.js";
 import {
   type InputEvents,
   type OutputEvents,
@@ -580,7 +580,7 @@ export class S2SBidirectionalStreamClient {
                       this.sendToolResult(
                         sessionId,
                         session.toolUseId,
-                        externalModelResult
+                        externalModelResult ?? {}
                       );
                     }
                   },
