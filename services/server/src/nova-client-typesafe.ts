@@ -830,7 +830,7 @@ export class S2SBidirectionalStreamClient {
           contentName: contentName,
           type: "TEXT",
           interactive: true,
-          role: "ASSISTANT",
+          role: "USER",
           textInputConfiguration: {
             mediaType: "text/plain",
           },
