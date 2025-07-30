@@ -819,6 +819,8 @@ export class S2SBidirectionalStreamClient {
 
     const contentName = randomUUID();
 
+    console.log(`Sending text content for session ${sessionId}: ${text}`);
+
     this.queueInputEvent(sessionId, {
       event: {
         contentStart: {
