@@ -600,10 +600,6 @@ export class S2SBidirectionalStreamClient {
 
                 if (parsedData.success) {
                   await handler.handler(parsedData.data);
-                } else {
-                  console.warn(
-                    "Got valid json but response does not fit any schema."
-                  );
                 }
               }
             } catch (e) {

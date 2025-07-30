@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export const ToolSpec = z.object({
+  toolSpec: z.object({
+    name: z.string(),
+    description: z.string(),
+    inputSchema: z.object({
+      json: z.string(),
+    }),
+  }),
+});
+
+export type ToolSpec = z.infer<typeof ToolSpec>;
+
 export const AudioMediaType = z.enum([
   "audio/wav",
   "audio/lpcm",
@@ -65,17 +77,7 @@ export const PromptStartEvent = z.object({
         mediaType: TextMediaType,
       }),
       toolConfiguration: z.object({
-        tools: z.array(
-          z.object({
-            toolSpec: z.object({
-              name: z.string(),
-              description: z.string(),
-              inputSchema: z.object({
-                json: z.string(),
-              }),
-            }),
-          })
-        ),
+        tools: z.array(ToolSpec),
       }),
     }),
   }),
