@@ -118,6 +118,9 @@ fastify.register(async (fastify) => {
               `Stream started streamSid: ${session.twilioStreamSid}, callSid: ${callSid}`
             );
 
+            setTimeout(async () => {
+              await session.sendTextContent("");
+            }, 1000);
             break;
 
           case "media":
