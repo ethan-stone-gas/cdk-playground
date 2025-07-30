@@ -110,7 +110,6 @@ fastify.register(async (fastify) => {
             break;
           case "start":
             await session.setupSystemPrompt(undefined, DefaultSystemPrompt);
-            await session.sendTextContent("");
             await session.setupStartAudioContent();
 
             session.twilioStreamSid = data.streamSid;
