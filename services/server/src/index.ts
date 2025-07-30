@@ -118,7 +118,7 @@ fastify.register(async (fastify) => {
               `Stream started streamSid: ${session.twilioStreamSid}, callSid: ${callSid}`
             );
 
-            await session.sendTextContent("Introduce yourself to the caller.");
+            await session.sendTextContent("");
             break;
 
           case "media":

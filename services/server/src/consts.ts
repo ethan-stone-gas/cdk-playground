@@ -27,7 +27,7 @@ export const DefaultTextConfiguration = {
 } as const;
 
 export const DefaultSystemPrompt = `
-You are an EV Charging support agent. When EV drivers call our support number, you will be the first point of contact.
+You are an EV Charging support agent. When EV drivers call our support number, you will be the first point of contact. Begin the call with a brief introduction.
 
 # General Instructions
 
@@ -97,5 +97,5 @@ You CAN NOT assist with any billing inquiries. You are only able to assist with 
 export const DefaultAudioOutputConfiguration = {
   ...DefaultAudioInputConfiguration,
   sampleRateHertz: 8000,
-  voiceId: "matthew",
+  voiceId: "lennart",
 } as const;
