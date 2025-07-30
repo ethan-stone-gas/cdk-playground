@@ -842,7 +842,7 @@ export class S2SBidirectionalStreamClient {
       event: {
         textInput: {
           promptName: session.promptName,
-          contentName: session.audioContentId,
+          contentName: contentName,
           content: text,
         },
       },
