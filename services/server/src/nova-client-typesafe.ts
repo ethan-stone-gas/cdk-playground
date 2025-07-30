@@ -123,6 +123,10 @@ export class StreamSession {
     this.processAudioContentQueue();
   }
 
+  public async sendTextContent(text: string): Promise<void> {
+    this.client.sendTextContent(this.sessionId, text);
+  }
+
   // Process audio queue for continuous streaming
   private async processAudioContentQueue() {
     if (
@@ -804,6 +808,47 @@ export class S2SBidirectionalStreamClient {
           promptName: session.promptName,
           contentName: session.audioContentId,
           content: base64Data,
+        },
+      },
+    });
+  }
+
+  public async sendTextContent(sessionId: string, text: string): Promise<void> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session || !session.isActive) return;
+
+    const contentName = randomUUID();
+
+    this.queueInputEvent(sessionId, {
+      event: {
+        contentStart: {
+          promptName: session.promptName,
+          contentName: contentName,
+          type: "TEXT",
+          interactive: true,
+          role: "ASSISTANT",
+          textInputConfiguration: {
+            mediaType: "text/plain",
+          },
+        },
+      },
+    });
+
+    this.queueInputEvent(sessionId, {
+      event: {
+        textInput: {
+          promptName: session.promptName,
+          contentName: session.audioContentId,
+          content: text,
+        },
+      },
+    });
+
+    this.queueInputEvent(sessionId, {
+      event: {
+        contentEnd: {
+          promptName: session.promptName,
+          contentName: contentName,
         },
       },
     });
