@@ -97,5 +97,5 @@ You CAN NOT assist with any billing inquiries. You are only able to assist with 
 export const DefaultAudioOutputConfiguration = {
   ...DefaultAudioInputConfiguration,
   sampleRateHertz: 8000,
-  voiceId: "lennart",
+  voiceId: "florian",
 } as const;
