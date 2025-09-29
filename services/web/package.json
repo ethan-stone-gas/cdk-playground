@@ -13,7 +13,8 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
     "@tanstack/react-query": "^5.82.0",
-    "aws-amplify": "^6.0.0",
+    "@types/aws-lambda": "^8.10.152",
+    "aws-amplify": "^6.15.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.60.0",

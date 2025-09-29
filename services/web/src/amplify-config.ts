@@ -5,23 +5,8 @@ import { Amplify } from "aws-amplify";
 const amplifyConfig = {
   Auth: {
     Cognito: {
-      userPoolId: "us-east-1_kgSBK6Wd6", // Replace with actual User Pool ID
-      userPoolClientId: "4r6tguf0ijcfktqkpprqqvbn6k", // Replace with actual Client ID
-      loginWith: {
-        oauth: {
-          domain:
-            "cdk-playground-914165346309.auth.us-east-1.amazoncognito.com", // Replace with actual Cognito domain
-          scopes: [
-            "openid",
-            "profile",
-            "email",
-            "aws.cognito.signin.user.admin",
-          ],
-          responseType: "code" as const,
-          redirectSignIn: ["http://localhost:5173/callback"],
-          redirectSignOut: ["http://localhost:5173/logout"],
-        },
-      },
+      userPoolId: "us-east-1_talsDHuLC", // Replace with actual User Pool ID
+      userPoolClientId: "5h6cuevkom8kjm3lgm38qjcd2p", // Replace with actual Client ID
     },
   },
 };

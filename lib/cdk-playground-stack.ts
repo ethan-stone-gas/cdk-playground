@@ -17,45 +17,6 @@ export class CdkPlaygroundStack extends cdk.Stack {
       "cdk-playground-secrets"
     );
 
-    const preSignUpFunction = new lambdaNodejs.NodejsFunction(
-      this,
-      "PreSignUpFunction",
-      {
-        entry: path.join(
-          __dirname,
-          "../services/functions/src/cognito-hooks/pre-sign-up.ts"
-        ),
-        handler: "main",
-        runtime: lambda.Runtime.NODEJS_22_X,
-        bundling: {
-          minify: true,
-          sourceMap: true,
-        },
-        environment: {
-          SECRET_ARN: secret.secretArn,
-        },
-      }
-    );
-
-    secret.grantRead(preSignUpFunction);
-
-    const preTokenGenerationFunction = new lambdaNodejs.NodejsFunction(
-      this,
-      "PreTokenGenerationFunction",
-      {
-        entry: path.join(
-          __dirname,
-          "../services/functions/src/cognito-hooks/pre-token-generation.ts"
-        ),
-        handler: "main",
-        runtime: lambda.Runtime.NODEJS_22_X,
-        bundling: {
-          minify: true,
-          sourceMap: true,
-        },
-      }
-    );
-
     const userPool = new cognito.UserPool(this, "UserPool", {
       selfSignUpEnabled: true,
       userVerification: {
@@ -64,29 +25,63 @@ export class CdkPlaygroundStack extends cdk.Stack {
       signInAliases: {
         email: true,
       },
+      mfa: cognito.Mfa.OPTIONAL,
+      mfaSecondFactor: {
+        sms: false,
+        otp: true,
+      },
     });
 
-    userPool.addTrigger(
-      cognito.UserPoolOperation.PRE_SIGN_UP,
-      preSignUpFunction,
-      cognito.LambdaVersion.V1_0
+    const defineAuthChallengeFunction = new lambdaNodejs.NodejsFunction(
+      this,
+      "DefineAuthChallengeFunction",
+      {
+        entry: path.join(
+          __dirname,
+          "../services/functions/src/cognito-hooks/define-auth-challenge.ts"
+        ),
+        handler: "main",
+      }
     );
 
+    // const createAuthChallengeFunction = new lambdaNodejs.NodejsFunction(
+    //   this,
+    //   "CreateAuthChallengeFunction",
+    //   {
+    //     entry: path.join(
+    //       __dirname,
+    //       "../services/functions/src/cognito-hooks/create-auth-challenge.ts"
+    //     ),
+    //     handler: "main",
+    //   }
+    // );
+
+    // const verifyAuthChallengeFunction = new lambdaNodejs.NodejsFunction(
+    //   this,
+    //   "VerifyAuthChallengeFunction",
+    //   {
+    //     entry: path.join(
+    //       __dirname,
+    //       "../services/functions/src/cognito-hooks/verify-auth-challenge.ts"
+    //     ),
+    //     handler: "main",
+    //   }
+    // );
+
     userPool.addTrigger(
-      cognito.UserPoolOperation.PRE_TOKEN_GENERATION_CONFIG,
-      preTokenGenerationFunction,
-      cognito.LambdaVersion.V2_0
+      cognito.UserPoolOperation.DEFINE_AUTH_CHALLENGE,
+      defineAuthChallengeFunction
     );
 
-    const apiResourceServer = userPool.addResourceServer("ApiResourceServer", {
-      identifier: "api",
-      scopes: [
-        {
-          scopeName: "api.access",
-          scopeDescription: "Access to the API",
-        },
-      ],
-    });
+    // userPool.addTrigger(
+    //   cognito.UserPoolOperation.CREATE_AUTH_CHALLENGE,
+    //   createAuthChallengeFunction
+    // );
+
+    // userPool.addTrigger(
+    //   cognito.UserPoolOperation.VERIFY_AUTH_CHALLENGE_RESPONSE,
+    //   verifyAuthChallengeFunction
+    // );
 
     const apiFunction = new lambdaNodejs.NodejsFunction(this, "ApiFunction", {
       entry: path.join(__dirname, "../services/functions/src/api/hono.ts"),
@@ -129,9 +124,6 @@ export class CdkPlaygroundStack extends cdk.Stack {
       },
     });
 
-    const CALLBACK_URLS = ["http://localhost:5173/callback"];
-    const LOGOUT_URLS = ["http://localhost:5173/logout"];
-
     const userPoolClient = new cognito.UserPoolClient(
       this,
       "MyUserPoolClient",
@@ -139,31 +131,9 @@ export class CdkPlaygroundStack extends cdk.Stack {
         userPool: userPool,
         generateSecret: false, // Set to true if you need a client secret for server-side apps
         authFlows: {
-          userSrp: true, // Recommended for secure user authentication
           custom: true,
-          userPassword: true,
-          adminUserPassword: true,
+          userSrp: true,
         },
-        oAuth: {
-          flows: {
-            authorizationCodeGrant: true,
-          },
-          scopes: [
-            cognito.OAuthScope.EMAIL,
-            cognito.OAuthScope.OPENID,
-            cognito.OAuthScope.PROFILE,
-            cognito.OAuthScope.COGNITO_ADMIN,
-            cognito.OAuthScope.resourceServer(apiResourceServer, {
-              scopeName: "api.access",
-              scopeDescription: "Access to the API",
-            }),
-          ],
-          callbackUrls: CALLBACK_URLS,
-          logoutUrls: LOGOUT_URLS,
-        },
-        supportedIdentityProviders: [
-          cognito.UserPoolClientIdentityProvider.COGNITO,
-        ],
       }
     );
 

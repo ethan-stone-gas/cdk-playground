@@ -1,113 +1,80 @@
-import { signIn, signInWithRedirect } from "aws-amplify/auth";
-import { useState, useCallback } from "react";
-import { useForm } from "react-hook-form";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useGetIdentityProviderForEmail } from "../hooks/identity-provider";
-
-type SignInForm = {
-  email: string;
-  password: string;
-};
+import { signIn } from "aws-amplify/auth";
 
 export function SignIn() {
   const navigate = useNavigate();
-  const { register, handleSubmit, watch, setValue } = useForm<SignInForm>();
-  const [showPasswordInput, setShowPasswordInput] = useState(false);
-  const [isCheckingIdp, setIsCheckingIdp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const { mutateAsync: getIdentityProviderForEmail } =
-    useGetIdentityProviderForEmail();
-
-  const email = watch("email");
-
-  const handleCheckIdentityProvider = useCallback(async () => {
-    if (!email || !email.includes("@")) {
-      return;
-    }
-
-    setIsCheckingIdp(true);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
-      const idp = await getIdentityProviderForEmail(email);
+      const result = await signIn({
+        username: email,
+        password,
+        options: { authFlowType: "CUSTOM_WITH_SRP" }, // important for our setup
+      });
 
-      if (idp) {
-        // For now, just log the identity provider
-        console.log("Found identity provider:", idp.identityProviderName);
-        // TODO: Handle SSO flow
-
-        await signInWithRedirect({
-          provider: {
-            custom: idp.identityProviderName,
-          },
-        });
+      if (result.isSignedIn) {
+        navigate("/home");
       } else {
-        // No identity provider found, show password input
-        setShowPasswordInput(true);
+        switch (result.nextStep.signInStep) {
+          case "CONTINUE_SIGN_IN_WITH_TOTP_SETUP":
+            navigate("/mfa-setup", {
+              state: { totpSetupDetails: result.nextStep.totpSetupDetails },
+            });
+            break;
+          case "CONFIRM_SIGN_IN_WITH_TOTP_CODE":
+          case "CONFIRM_SIGN_IN_WITH_SMS_CODE":
+            navigate("/mfa-verify");
+            break;
+          default:
+            console.warn("Unhandled next step:", result.nextStep);
+        }
       }
-    } catch (error) {
-      console.error("Error checking identity provider:", error);
-      // On error, show password input as fallback
-      setShowPasswordInput(true);
+    } catch (err: any) {
+      console.error("Sign in error:", err);
+      setError(err.message || "Sign in failed");
     } finally {
-      setIsCheckingIdp(false);
+      setLoading(false);
     }
-  }, [email, getIdentityProviderForEmail]);
-
-  const onSubmit = async (data: SignInForm) => {
-    const result = await signIn({
-      username: data.email,
-      password: data.password,
-    });
-
-    if (result.isSignedIn) {
-      navigate("/home");
-    }
-  };
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
-      <h1 className="text-2xl font-bold">Sign In</h1>
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-2">
+    <div className="flex items-center justify-center h-screen">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4 p-6 border rounded-md w-80"
+      >
+        <h1 className="text-xl font-bold">Sign In</h1>
         <input
-          className="border border-gray-300 rounded-md p-2"
           type="email"
           placeholder="Email"
-          {...register("email")}
+          className="border p-2 rounded"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
         />
-
-        {!showPasswordInput && (
-          <button
-            type="button"
-            className="bg-blue-500 text-white rounded-md p-2 cursor-pointer"
-            onClick={handleCheckIdentityProvider}
-            disabled={isCheckingIdp || !email || !email.includes("@")}
-          >
-            {isCheckingIdp ? "Checking..." : "Continue"}
-          </button>
-        )}
-
-        {isCheckingIdp && (
-          <div className="text-sm text-gray-600">
-            Checking identity provider...
-          </div>
-        )}
-
-        {showPasswordInput && (
-          <>
-            <input
-              className="border border-gray-300 rounded-md p-2"
-              type="password"
-              placeholder="Password"
-              {...register("password")}
-            />
-            <button
-              className="bg-blue-500 text-white rounded-md p-2 cursor-pointer"
-              type="submit"
-            >
-              Sign In
-            </button>
-          </>
-        )}
+        <input
+          type="password"
+          placeholder="Password"
+          className="border p-2 rounded"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button
+          type="submit"
+          className="bg-blue-500 text-white p-2 rounded"
+          disabled={loading}
+        >
+          {loading ? "Signing in…" : "Sign In"}
+        </button>
+        {error && <div className="text-red-600 text-sm">{error}</div>}
       </form>
     </div>
   );
